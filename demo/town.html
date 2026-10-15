@@ -13,7 +13,7 @@
   .chip{background:#2b1f45;border:3px solid #0e0a18;box-shadow:inset -3px -3px 0 #1d1530,inset 3px 3px 0 #4a3a6e;padding:3px 8px;font-size:13px;font-weight:800}
   .chip b{color:#ffd23f}
   #edict{flex-basis:100%;font-size:12px;color:#ffe9a8}
-  .px{background:#ffd23f;color:#3a2a00;border:3px solid #0e0a18;box-shadow:inset -4px -4px 0 #c99a10,inset 4px 4px 0 #fff2b0;padding:9px 16px;font-size:16px;font-weight:900;font-family:inherit;cursor:pointer}
+  .px{background:#ffd23f;color:#3a2a00;border:3px solid #0e0a18;box-shadow:inset -4px -4px 0 #c99a10,inset 4px 4px 0 #fff2b0;padding:9px 16px;font-size:16px;font-weight:900;font-family:inherit;cursor:pointer;white-space:nowrap}
   .px:active{transform:translateY(2px)}
   .px.gray{background:#8d86a3;color:#1b1430;box-shadow:inset -4px -4px 0 #5f5875,inset 4px 4px 0 #c9c3dc}
   .px.blue{background:#5aa9ff;color:#0b2140;box-shadow:inset -4px -4px 0 #2f6fc0,inset 4px 4px 0 #bfe0ff}
@@ -118,68 +118,100 @@ function nailong(x,y,mood=0,t=0,scale=1){ // x,y = feet center
   else{P(-4,-10,2,2,'#2b1f45');P(2,-10,2,2,'#2b1f45');P(-1,-6,2,1,'#2b1f45');P(-6,-7,2,1,'#ff9aa8');P(4,-7,2,1,'#ff9aa8')}
 }
 
-// ---------- town ----------
-let B=[],me={x:30,y:80,tx:30,ty:80,goal:null,face:1},townT=0,scene='town';
+// ---------- town (top-down) ----------
+let B=[],streets=[],deco=[],fountain=null,me={x:30,y:80,tx:30,ty:80,goal:null},townT=0,scene='town';
+const BW=40,ROOF=20,WALL=12;
+function rnd(seed){let s=seed;return()=>(s=(s*16807)%2147483647)/2147483647}
 function layoutTown(){
   const keys=['home','biscuit','hair','tattoo'];
-  const two=LW<170,rows=two?2:1,per=two?2:4;
-  B=keys.map((k,i)=>{const r=Math.floor(i/per),c=i%per;
-    const by=two?(r===0?LH*0.46:LH*0.82):LH*0.66;
-    return{k,x:Math.round(LW*(c+0.5)/per),y:Math.round(by),w:38,h:30}});
-  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+8}
+  const top=Math.ceil(80/S),H=LH-top,land=LW>=LH*1.3;
+  const cols=land?4:2,rows=land?1:2;
+  const fronts=land?[top+Math.round(H*0.5)]:[top+Math.round(H*0.36),top+Math.round(H*0.78)];
+  B=keys.map((k,i)=>{const r=Math.floor(i/cols),c=i%cols;return{k,x:Math.round(LW*(c+0.5)/cols),y:fronts[r],w:BW,h:ROOF+WALL}});
+  streets=fronts.map(y=>({x:0,y:y+1,w:LW,h:10}));
+  if(!land)streets.push({x:Math.round(LW/2)-5,y:fronts[0]+1,w:10,h:fronts[1]-fronts[0]+10});
+  // plaza with God's fountain in the biggest open area
+  if(land){const py=fronts[0]+11+Math.round((LH-fronts[0]-11)/2);fountain={x:Math.round(LW/2),y:py,r:Math.min(14,Math.round((LH-fronts[0]-11)/2)-3)};
+    streets.push({x:Math.round(LW/2)-5,y:fronts[0]+1,w:10,h:py-fronts[0]})}
+  else{fountain={x:Math.round(LW/2),y:Math.round((fronts[0]+11+fronts[1]-ROOF-WALL)/2),r:9}}
+  if(fountain.r<6)fountain=null;
+  // trees and flowers, kept off buildings, streets and the fountain
+  const rand=rnd(7),free=(x,y,m)=>y>top+4&&!B.some(b=>x>b.x-b.w/2-m&&x<b.x+b.w/2+m&&y>b.y-b.h-m-6&&y<b.y+m)&&
+    !streets.some(s=>x>s.x-m&&x<s.x+s.w+m&&y>s.y-m&&y<s.y+s.h+m)&&!(fountain&&Math.hypot(x-fountain.x,y-fountain.y)<fountain.r+m+4);
+  deco=[];
+  for(let i=0;i<400&&deco.filter(d=>d.t==='tree').length<Math.round(LW*LH/1400);i++){const x=rand()*LW,y=rand()*LH;
+    if(free(x,y,7)&&free(x,y-12,7)&&!deco.some(d=>d.t==='tree'&&Math.hypot(d.x-x,d.y-y)<14))deco.push({t:'tree',x:Math.round(x),y:Math.round(y)})}
+  for(let i=0;i<300&&deco.length<Math.round(LW*LH/500);i++){const x=rand()*LW,y=rand()*LH;
+    if(free(x,y,2)&&!deco.some(d=>Math.hypot(d.x-x,d.y-y)<6))deco.push({t:'flower',x:Math.round(x),y:Math.round(y),c:['#ff7fa8','#fff4a8','#ffffff','#b48cff'][Math.floor(rand()*4)]})}
+  deco.sort((a,b)=>a.y-b.y);
+  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+7}
+}
+function tree(x,y){
+  lx.fillStyle='#0003';lx.beginPath();lx.ellipse(x+2,y+3,7,3,0,0,7);lx.fill();
+  R(x-1,y-2,3,5,'#7a4a1a');
+  const rows=[[-4,8],[-6,12],[-7,14],[-7,14],[-7,14],[-6,12],[-4,8]];
+  rows.forEach(([o,w],i)=>R(x+o,y-12+i*1.4,w,2,i<2?'#5cc252':'#3f9b3a'));
+  R(x-3,y-11,3,2,'#7fdc6e');R(x+2,y-7,2,1,'#2f7d2c');
+}
+function drawFountain(f){
+  const {x,y,r}=f;
+  for(let dy=-r;dy<=r;dy++){const w=Math.round(Math.sqrt(r*r-dy*dy)*1.3);R(x-w,y+dy*0.7,w*2,1,'#b9b0a0')}
+  const ri=r-3;for(let dy=-ri;dy<=ri;dy++){const w=Math.round(Math.sqrt(ri*ri-dy*dy)*1.3);R(x-w,y+dy*0.7,w*2,1,'#5aa9ff')}
+  for(let i=0;i<5;i++){const a=townT*2+i*1.3;R(x+Math.cos(a)*ri*0.9,y+Math.sin(a)*ri*0.5,1,1,'#ffffff')}
+  // God's needle statue in the middle
+  R(x-2,y-3,4,4,'#d8d0c0');R(x-1,y-14,2,11,'#e8e8f0');R(x-3,y-10,6,1,'#ffd23f');R(x,y-16,1,2,'#ffffff');
 }
 function building(b){
-  const {k,x,y}=b,w=b.w,h=b.h,l=x-w/2,top=y-h,locked=!G.open[k];
-  const pal={home:['#f2e3c6','#c4473a','#8a2a22'],biscuit:['#ffe3b0','#ffd23f','#e0a800'],hair:['#d9ecff','#5aa9ff','#2f6fc0'],tattoo:['#5b4680','#ff5fa2','#b0306e']}[k];
-  R(l+2,y,w,3,'#0002');
-  R(l,top,w,h,pal[0]);R(l,top,w,1,'#fff6');R(l+w-2,top,2,h,'#0002');
-  for(let i=0;i<7;i++)R(l-3+i*1.5,top-2-i*2,w+6-i*3,2,pal[i%2?1:2]);
-  R(x-3,y-11,7,11,'#5a3b22');R(x+2,y-6,1,1,'#ffd23f');
-  R(l+4,top+6,8,7,'#9fd8ff');R(l+4,top+9,8,1,'#fff8');R(l+w-12,top+6,8,7,'#9fd8ff');R(l+w-12,top+9,8,1,'#fff8');
-  if(k==='home'){R(x-1,top-22,2,9,'#ffd23f');R(x-4,top-19,8,2,'#ffd23f')}
-  if(k==='biscuit'){for(let i=0;i<w;i+=4)R(l+i,top,2,4,'#fff');R(x-8,top-9,16,7,'#e8b46a');for(let i=0;i<3;i++)R(x-5+i*4,top-7,1,1,'#7a4a1a'),R(x-5+i*4,top-4,1,1,'#7a4a1a')}
-  if(k==='hair'){for(let i=0;i<12;i++)R(l+1,top+2+i,3,1,['#c4473a','#fff','#2f6fc0'][(i+Math.floor(townT*6))%3]);R(x-7,top-10,14,7,'#fff8e6');R(x-5,top-8,10,1,'#2b1f45');for(let i=0;i<5;i++)R(x-5+i*2,top-7,1,3,'#2b1f45')}
-  if(k==='tattoo'){const on=Math.sin(townT*5)>-0.3;const c=on?'#ff5fa2':'#7a3a5a';R(x-4,top-9,3,2,c);R(x+1,top-9,3,2,c);R(x-5,top-8,10,3,c);R(x-3,top-5,6,2,c);R(x-1,top-3,2,1,c)}
-  if(locked){lx.fillStyle='#1b1430a0';lx.fillRect(l-3,top-22,w+6,h+22);R(x-3,y-18,6,5,'#ffd23f');R(x-2,y-21,1,3,'#ffd23f');R(x+1,y-21,1,3,'#ffd23f');R(x-2,y-22,4,1,'#ffd23f');R(x,y-16,1,2,'#3a2a00')}
+  const {k,x,y}=b,l=x-BW/2,wt=y-WALL,rt=wt-ROOF,locked=!G.open[k];
+  const pal={home:['#f2e3c6','#c4473a','#a03328'],biscuit:['#ffe3b0','#ffd23f','#ffffff'],hair:['#e6f2ff','#5aa9ff','#3f86d6'],tattoo:['#6a5590','#7a4fa8','#64408c']}[k];
+  R(l+3,rt+4,BW,ROOF+WALL,'#0003');
+  // front wall
+  R(l,wt,BW,WALL,pal[0]);R(l,y-1,BW,1,'#0002');
+  R(x-3,y-9,6,9,'#5a3b22');R(x+1,y-5,1,1,'#ffd23f');
+  R(l+5,wt+3,7,5,'#9fd8ff');R(l+5,wt+5,7,1,'#fff8');R(l+BW-12,wt+3,7,5,'#9fd8ff');R(l+BW-12,wt+5,7,1,'#fff8');
+  // roof seen from above
+  if(k==='biscuit'){for(let i=0;i<BW+4;i+=4)R(l-2+i,rt,2,ROOF+1,pal[1]),R(l+i,rt,2,ROOF+1,pal[2]);R(l-2,wt-1,BW+4,2,'#e0a800')}
+  else{for(let i=0;i<ROOF;i+=3)R(l-2,rt+i,BW+4,3,i%6?pal[1]:pal[2]);R(l-2,rt+Math.round(ROOF/2),BW+4,1,'#0002');R(l-2,wt-1,BW+4,2,pal[2])}
+  R(l-2,rt,BW+4,1,'#fff5');
+  if(k==='home'){R(l+BW-10,rt-3,5,7,'#8a7a6a');R(l+BW-10,rt-3,5,1,'#5a4a3a');
+    R(x-1,rt-8,3,14,'#ffd23f');R(x-4,rt-4,9,3,'#ffd23f');R(x,rt-8,1,14,'#fff2b0')}
+  if(k==='biscuit'){R(x-9,wt-7,18,7,'#e8b46a');R(x-9,wt-7,18,1,'#f6cf8a');for(let i=0;i<4;i++)R(x-6+i*4,wt-5,1,1,'#7a4a1a'),R(x-6+i*4,wt-3,1,1,'#7a4a1a')}
+  if(k==='hair'){for(let i=0;i<9;i++)R(x+6,y-10+i,2,1,['#c4473a','#fff','#2f6fc0'][(i+Math.floor(townT*6))%3]);R(x-8,rt+5,16,8,'#fff8e6');R(x-6,rt+7,12,1,'#2b1f45');for(let i=0;i<6;i++)R(x-6+i*2,rt+8,1,3,'#2b1f45')}
+  if(k==='tattoo'){const c=Math.sin(townT*5)>-0.3?'#ff5fa2':'#8a4a6a';R(x-5,rt+5,4,3,c);R(x+1,rt+5,4,3,c);R(x-6,rt+7,12,3,c);R(x-4,rt+10,8,2,c);R(x-2,rt+12,4,1,c)}
+  if(locked){lx.fillStyle='#1b1430a0';lx.fillRect(l-2,rt-2,BW+4,ROOF+WALL+2);
+    R(x-4,wt-4,8,6,'#ffd23f');R(x-3,wt-8,1,4,'#ffd23f');R(x+2,wt-8,1,4,'#ffd23f');R(x-3,wt-9,6,1,'#ffd23f');R(x,wt-2,1,2,'#3a2a00')}
 }
 function drawTown(dt){
   townT+=dt;
-  // sky with pixel bands
-  const sky=['#7ec8ff','#8fd1ff','#a3dbff','#b9e5ff','#d0eeff'];
-  const hz=Math.round(LH*0.36);
-  for(let i=0;i<5;i++)R(0,Math.round(hz*i/5),LW,Math.ceil(hz/5)+1,sky[i]);
-  R(LW-26,8,10,10,'#fff4a8');R(LW-27,10,12,6,'#fff4a8');R(LW-24,7,6,12,'#fff4a8');
-  for(let i=0;i<3;i++){const cx=((townT*4+i*80)%(LW+40))-20,cy=10+i*7;R(cx,cy,16,4,'#fff');R(cx+4,cy-3,8,3,'#fff')}
-  R(0,hz,LW,LH-hz,'#6cc45a');
-  for(let y=hz;y<LH;y+=6)for(let x=(y/6%2)*5;x<LW;x+=10)R(x,y,1,1,'#58ad48');
-  // hills
-  for(let x=0;x<LW;x+=2){const h=6+Math.round(4*Math.sin(x*0.07)+3*Math.sin(x*0.19));R(x,hz-h,2,h,'#58ad48')}
-  // roads under each row
-  const rowYs=[...new Set(B.map(b=>b.y))];
-  rowYs.forEach(y=>{R(0,y+2,LW,9,'#c9b48a');for(let x=0;x<LW;x+=8)R(x,y+6,4,1,'#e8dab8')});
-  // trees
-  for(let x=6;x<LW;x+=Math.max(30,Math.round(LW/5))){const y=rowYs[0]-34;if(B.some(b=>Math.abs(b.x-x)<26))continue;R(x,y+8,3,8,'#7a4a1a');R(x-5,y,13,9,'#3f9b3a');R(x-3,y-3,9,4,'#3f9b3a')}
-  B.forEach(building);
-  // nailong walking
-  const dx=me.tx-me.x,dy=me.ty-me.y,d=Math.hypot(dx,dy),sp=70*dt;
-  if(d>sp){me.x+=dx/d*sp;me.y+=dy/d*sp;if(Math.abs(dx)>0.5)me.face=Math.sign(dx)}
+  for(let y=0;y<LH;y+=8)for(let x=0;x<LW;x+=8)R(x,y,8,8,((x+y)/8)%2?'#6cc45a':'#66bd55');
+  for(let y=3;y<LH;y+=7)for(let x=(y%2)*4;x<LW;x+=11)R(x,y,1,2,'#58ad48');
+  streets.forEach(s=>{R(s.x,s.y,s.w,s.h,'#d8c8a0');
+    for(let y=s.y;y<s.y+s.h;y+=5)for(let x=s.x+((y-s.y)/5%2)*3;x<s.x+s.w;x+=6)R(x,y,1,1,'#c4b48c')});
+  streets.forEach(s=>{R(s.x,s.y,s.w,1,'#b8a87e');R(s.x,s.y+s.h-1,s.w,1,'#b8a87e')});
+  if(fountain)drawFountain(fountain);
+  // draw buildings, trees and Nailong sorted by their front y so nearer things overlap farther ones
+  const dx=me.tx-me.x,dy=me.ty-me.y,d=Math.hypot(dx,dy),sp=70*dt,walking=d>sp;
+  if(walking){me.x+=dx/d*sp;me.y+=dy/d*sp}
   else{me.x=me.tx;me.y=me.ty;if(me.goal){const g=me.goal;me.goal=null;enterShop(g)}}
-  nailong(Math.round(me.x),Math.round(me.y),0,d>sp?townT:0);
+  const items=[...B.map(b=>({y:b.y,f:()=>building(b)})),...deco.map(o=>({y:o.y,f:()=>o.t==='tree'?tree(o.x,o.y):(R(o.x,o.y,1,1,o.c),R(o.x-1,o.y+1,1,1,o.c),R(o.x+1,o.y+1,1,1,o.c),R(o.x,o.y+2,1,1,'#3f9b3a'))})),
+    {y:me.y,f:()=>{lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(me.x),Math.round(me.y),6,2,0,0,7);lx.fill();nailong(Math.round(me.x),Math.round(me.y),0,walking?townT:0)}}];
+  items.sort((a,b)=>a.y-b.y).forEach(i=>i.f());
 }
 function townLabels(){
   ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
-  const fs=Math.max(11,Math.round(S*4.2));
+  const fs=Math.max(11,Math.round(S*4));
   ctx.font=`900 ${fs*DPR}px -apple-system,"PingFang SC",sans-serif`;
   B.forEach(b=>{const t=SHOPS[b.k].name+(G.open[b.k]?'':` · ${SHOPS[b.k].price}金币`);
-    const x=b.x*S*DPR,y=(b.y+12)*S*DPR;
+    const x=b.x*S*DPR,y=(b.y+7)*S*DPR;
     ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,x,y);ctx.fillStyle=G.open[b.k]?'#fff8e6':'#ffd23f';ctx.fillText(t,x,y)});
   ctx.restore();
 }
 cv.addEventListener('pointerdown',e=>{
   if(scene!=='town'||!$('panel').classList.contains('hidden'))return;
   const x=e.clientX/S,y=e.clientY/S;
-  const b=B.find(b=>x>b.x-b.w/2-4&&x<b.x+b.w/2+4&&y>b.y-b.h-24&&y<b.y+18);
-  if(b){me.tx=b.x;me.ty=b.y+8;me.goal=b.k}
+  const b=B.find(b=>x>b.x-b.w/2-3&&x<b.x+b.w/2+3&&y>b.y-b.h-8&&y<b.y+8);
+  if(b){me.tx=b.x;me.ty=b.y+7;me.goal=b.k}
+  else{me.tx=Math.max(4,Math.min(LW-4,x));me.ty=Math.max(Math.ceil(80/S),Math.min(LH-2,y));me.goal=null}
 });
 
 // ---------- panels ----------
@@ -189,7 +221,7 @@ function bind(id,fn){const el=$(id);if(el)el.onclick=fn}
 function welcome(){
   show(`<h2>奶龙小镇 · 可浏览 demo</h2>
   <p>2078 年，上帝说：<b>苏打饼干一定要有孔。</b>你是针头奶龙，替上帝给小镇打孔。</p>
-  <p>点地图上的建筑，奶龙会走过去。<b>饼干店</b>接单打孔赚金币；<b>主角家</b>的神台可以祈祷升级；攒钱开<b>植发店</b>和<b>纹身店</b>。一天只开一家店，打烊后出账本。</p>
+  <p>俯视角小镇：点地图上的建筑，奶龙会走过去，点空地就在镇上闲逛。<b>饼干店</b>接单打孔赚金币；<b>主角家</b>的神台可以祈祷升级；攒钱开<b>植发店</b>和<b>纹身店</b>。一天只开一家店，打烊后出账本。</p>
   <p>打孔沿用核心玩法：针头只靠<b>倾斜手机</b>移动，左手「固定」，右手「打孔」。电脑上用方向键。</p>
   <div class="row"><button class="px" id="goB">进入小镇</button></div>
   <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，具体以 GAMEPLAY.md 为准。</p>`);
@@ -267,7 +299,7 @@ function closeShop(){
     <tr><td><b>今日利润</b></td><td><b>${prof+bonus}</b></td></tr></table>
     <p>现在有 <b>${G.coins}</b> 金币。回主角家祈祷升级，或者攒钱开新店。</p>
     <div class="row"><button class="px" id="homeB">回家</button></div>`);
-  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+8;me.goal='home'});
+  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+7;me.goal='home'});
 }
 
 // ---------- feedback (已定表情) ----------
