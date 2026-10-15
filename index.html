@@ -1,0 +1,1667 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+</head><body>
+<title>雷霆大针管</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@500;800&display=swap">
+<style>
+/* Layout: full-screen canvas "baking tray"; left-hand zoom pad bottom-left, right-hand punch button bottom-right; HUD across the top. Single dark look by choice. */
+:root{
+  --tray:#1d2333;       /* blued steel baking tray */
+  --tray-2:#272f45;
+  --volt:#ffc61a;       /* the yellow needle ring from the sketch */
+  --volt-ink:#2a1f00;
+  --hand:#ff5a5f;       /* the red "hands" from the sketch */
+  --paper:#f3ead6;
+  --muted:#9aa3bd;
+  --f-display:"ZCOOL KuaiLe","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --f-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--tray);color:var(--paper);font-family:var(--f-body);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  pointer-events:none}
+.hud .grp{display:flex;gap:14px;align-items:baseline}
+.stat{display:flex;flex-direction:column;line-height:1.05}
+.stat small{font-size:10px;letter-spacing:.12em;color:var(--muted)}
+.stat b{font-family:var(--f-display);font-weight:400;font-size:24px;font-variant-numeric:tabular-nums}
+.lives{font-size:18px;letter-spacing:2px}
+.chip{pointer-events:auto;font:500 11px var(--f-body);color:var(--muted);border:1px solid #3a4462;border-radius:999px;padding:4px 10px;background:transparent}
+.chip.on{color:var(--volt-ink);background:var(--volt);border-color:var(--volt);font-weight:800;font-size:13px;padding:6px 14px}
+.cal{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding:14px;border:2px solid var(--volt);border-radius:16px;background:rgba(255,198,26,.08)}
+.cal.ok{border-color:#6fdc8c;background:rgba(111,220,140,.08)}
+.cal h2{margin:0 0 4px;font-family:var(--f-display);font-weight:400;font-size:22px;color:var(--volt)}
+.cal.ok h2{color:#6fdc8c}
+.cal p{font-size:13px;line-height:1.5}
+.level{width:76px;height:76px;border-radius:50%;border:2px solid #3a4462;position:relative;background:radial-gradient(circle,transparent 13px,#3a4462 14px,transparent 15px)}
+.bubble{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:var(--volt);box-shadow:0 0 12px var(--volt)}
+.cal.ok .bubble{background:#6fdc8c;box-shadow:0 0 12px #6fdc8c}
+.calbtn{margin-top:8px;padding:10px 20px;border-radius:12px;background:var(--volt);color:var(--volt-ink);font-size:18px;box-shadow:0 4px 0 #8a6200}
+.calbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #8a6200}
+.cal.ok .calbtn{background:transparent;color:#6fdc8c;box-shadow:inset 0 0 0 2px #6fdc8c;font-size:15px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:7px 12px;border-radius:999px;background:transparent;color:var(--muted);font:800 13px var(--f-body);box-shadow:inset 0 0 0 1.5px #3a4462}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--tray);box-shadow:none}
+.stat.warn b{color:var(--hand)}
+.count{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center}
+.count b{display:block;font-family:var(--f-display);font-weight:400;font-size:min(36vh,160px);line-height:1;color:var(--volt);text-shadow:0 4px 0 #000}
+.count span{display:block;font-size:16px;color:var(--paper);text-shadow:0 2px 0 #000;margin-top:6px}
+.board{margin:0;padding:0;list-style:none;display:grid;gap:4px;counter-reset:rk}
+.board li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:baseline;padding:8px 10px;border-radius:10px;background:var(--tray-2);counter-increment:rk;font-size:14px}
+.board li::before{content:counter(rk);font-family:var(--f-display);color:var(--muted);font-size:18px}
+.board li:nth-child(1)::before{color:var(--volt)}
+.board li.me{box-shadow:inset 0 0 0 2px var(--volt)}
+.board li b{font-family:var(--f-display);font-weight:400;font-size:20px;font-variant-numeric:tabular-nums;color:var(--paper)}
+.board li small{display:block;color:var(--muted);font-size:11px}
+.board .empty{display:block;color:var(--muted);background:none}
+.board .empty::before{content:none}
+.blink{background:var(--hand);color:#fff;box-shadow:0 3px 0 #9c2a2e}
+.blink.dry{animation:dry .5s infinite alternate}
+@keyframes dry{to{transform:scale(1.12)}}
+.lids{position:fixed;inset:0;pointer-events:none}
+.lids i{position:absolute;left:0;right:0;height:0;background:#07080c;transition:height .09s ease-in}
+.lids i:first-child{top:0}.lids i:last-child{bottom:0}
+.lids.shut i{height:51%}
+.stat.warn b{color:var(--hand)}
+#game{transition:filter .15s}
+.shopcard{max-width:760px}
+.shophead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.shophead h1 span{font-size:.5em;color:var(--paper)}
+.money{font-family:var(--f-display);font-size:30px;color:#6fdc8c;font-variant-numeric:tabular-nums}
+.town{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;border-radius:18px;
+  background:repeating-linear-gradient(90deg,transparent 0 46%,#2b3348 46% 54%,transparent 54% 100%),repeating-linear-gradient(0deg,transparent 0 46%,#2b3348 46% 54%,transparent 54% 100%),#232a3d}
+@media (min-width:640px){.town{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.place{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border-radius:14px;background:#1d2333;color:var(--paper);box-shadow:0 0 0 1.5px #3a4462;font-family:var(--f-body);min-width:0}
+.place svg{width:72px;height:54px}
+.place b{font-family:var(--f-display);font-weight:400;font-size:20px}
+.place small{font-size:12px;color:var(--muted);text-align:center;line-height:1.35}
+.place.now{box-shadow:0 0 0 2.5px var(--volt)}
+.place.now small{color:var(--volt)}
+.place:active{transform:translateY(2px)}
+.orders{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.order{display:flex;flex-direction:column;gap:3px;padding:10px;border-radius:12px;background:var(--tray-2);color:var(--paper);text-align:left;font-family:var(--f-body);box-shadow:0 0 0 1.5px #3a4462}
+.order.sel{box-shadow:0 0 0 2.5px var(--volt)}
+.order small{color:var(--muted);font-size:12px;line-height:1.4}
+.sub{margin:0;color:var(--paper);font-weight:800;font-size:14px}
+.ups{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.up{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--tray-2);min-width:0}
+.up b{font-size:15px}.up small{color:var(--muted);font-size:12px;line-height:1.4}
+.up .lv{color:var(--volt);font-size:12px}
+.up button{align-self:flex-start;margin-top:4px;padding:6px 12px;border-radius:10px;background:var(--volt);color:var(--volt-ink);font:800 13px var(--f-body)}
+.up button:disabled{background:#3a4462;color:var(--muted)}
+.inv{display:flex;flex-wrap:wrap;gap:8px}
+.item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px;border-radius:12px;background:var(--tray-2);font-size:11px;color:var(--muted);width:92px;cursor:pointer;border:0;font-family:var(--f-body)}
+.item canvas{width:80px;height:56px;display:block}
+.item b{color:var(--paper);font-size:13px}
+.item .st{color:var(--volt);letter-spacing:1px}
+.item.gold{box-shadow:inset 0 0 0 2px #f2c230}.item.jade{box-shadow:inset 0 0 0 2px #5fc79a}
+.day{place-items:stretch;background:#f3ead6;color:#2b2318}
+.daywrap{display:flex;flex-direction:column;gap:10px;max-width:900px;width:100%;margin:0 auto}
+.dayhead{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.dayhead b{font-family:var(--f-display);font-weight:400;font-size:24px}
+.dayhead .money{color:#1f8a4c;font-size:24px}
+.daytime{flex:1;min-width:120px;height:10px;border-radius:99px;background:#e2d5b8;overflow:hidden}
+.daytime i{display:block;height:100%;background:#e0a21a;width:100%}
+.dayhint{margin:0;font-size:13px;color:#6b5b42}
+.custs{display:flex;gap:8px;flex-wrap:wrap;min-height:116px}
+.cust{flex:1 1 150px;max-width:240px;display:flex;flex-direction:column;gap:3px;padding:10px;border-radius:14px;background:#fffaf0;border:2px solid #e2d5b8;cursor:pointer;text-align:left;font-family:var(--f-body);color:#2b2318}
+.cust.sel{border-color:#e0a21a;box-shadow:0 0 0 3px rgba(224,162,26,.3)}
+.cust b{font-size:14px}.cust small{font-size:12px;color:#6b5b42;line-height:1.4}
+.cust .pat{height:5px;border-radius:9px;background:#e2d5b8;overflow:hidden}.cust .pat i{display:block;height:100%;background:#5fc79a}
+.cust.angry .pat i{background:#ff5a5f}
+.counter .item{background:#fffaf0;color:#6b5b42}.counter .item b{color:#2b2318}
+.counter .item .st{color:#c58a00}
+.ledger{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.ledger td{padding:6px 4px;border-bottom:1px solid #2f3850;color:var(--paper)}
+.ledger td:nth-child(2){color:var(--muted);font-size:12px}
+.ledger td:last-child{text-align:right;white-space:nowrap}
+.ledger tr.head td{color:var(--volt);font-weight:800;padding-top:12px}
+.ledger tr.total td{font-family:var(--f-display);font-size:24px;border-bottom:0;padding-top:12px}
+.ledger .pos{color:#6fdc8c}.ledger .neg{color:var(--hand)}
+.go:disabled{opacity:.35;box-shadow:none;cursor:not-allowed}
+
+/* hands */
+.hand{position:fixed;bottom:0;display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.hand.left{left:0;padding-left:max(16px,env(safe-area-inset-left,0px))}
+.hand.right{right:0;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hand .tag{font-size:10px;letter-spacing:.2em;color:var(--hand);opacity:.85}
+.zoompad{display:flex;flex-direction:column;gap:8px;align-items:center}
+.btn{appearance:none;border:0;cursor:pointer;font-family:var(--f-display);touch-action:none}
+.zbtn{width:56px;height:56px;border-radius:16px;background:var(--tray-2);color:var(--paper);font-size:30px;line-height:1;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.35),0 0 0 2px #3a4462}
+.zbtn:active,.zbtn.down{transform:translateY(2px);box-shadow:inset 0 -1px 0 rgba(0,0,0,.35),0 0 0 2px var(--hand)}
+.zlabel{font:800 12px var(--f-body);color:var(--muted);font-variant-numeric:tabular-nums}
+.punch{width:112px;height:112px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#ffe27a,var(--volt) 55%,#d99a00);
+  color:var(--volt-ink);font-size:26px;box-shadow:0 6px 0 #8a6200,0 10px 24px rgba(255,198,26,.25)}
+.punch[data-d="0"]{background:radial-gradient(circle at 38% 32%,#fffaf0,#efe6d2 60%,#cbbd9e);color:#3a3020}
+.punch[data-d="1"]{background:radial-gradient(circle at 38% 32%,#c9c4bc,#8d867c 60%,#5f5952);color:#fff}
+.punch[data-d="2"]{background:radial-gradient(circle at 38% 32%,#4a4038,#1a140f 60%,#000);color:#ffc61a}
+.punch:active,.punch.down{transform:translateY(5px);box-shadow:0 1px 0 #8a6200,0 4px 12px rgba(255,198,26,.35)}
+.btn:focus-visible{outline:3px solid var(--hand);outline-offset:3px}
+
+/* overlays */
+.ov{position:fixed;inset:0;display:grid;place-items:center;background:rgba(14,17,26,.88);overflow-y:auto;padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card{max-width:440px;width:100%;display:flex;flex-direction:column;gap:14px;text-align:left}
+.card h1{font-family:var(--f-display);font-weight:400;font-size:clamp(34px,8vw,52px);line-height:1;margin:0;color:var(--volt);text-wrap:balance}
+.card h1 span{color:var(--paper)}
+.card p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+.card ul{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:14px}
+.card li{display:grid;grid-template-columns:44px 1fr;gap:8px}
+.card li b{color:var(--hand);font-weight:800}
+.startcard{max-width:860px;display:grid;grid-template-columns:1fr;gap:18px}
+.startcard .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+@media (min-width:640px){.startcard{grid-template-columns:1.1fr 1fr;align-items:center}}
+.modes{display:flex;flex-wrap:wrap;gap:10px}
+.ghost{padding:12px 18px;border-radius:14px;background:transparent;color:var(--paper);font-size:18px;box-shadow:inset 0 0 0 2px #3a4462}
+.ghost:active{transform:translateY(2px)}
+.ghost:disabled{opacity:.35;cursor:not-allowed}
+.link{background:none;border:0;color:var(--muted);font:500 13px var(--f-body);text-decoration:underline;padding:4px 0;cursor:pointer;align-self:flex-start}
+.tools{position:fixed;left:50%;transform:translateX(-50%);top:calc(56px + env(safe-area-inset-top,0px));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 32px)}
+.tbtn{padding:8px 12px;border-radius:10px;background:var(--tray-2);color:var(--paper);font:800 13px var(--f-body);box-shadow:0 0 0 1.5px #3a4462}
+.tbtn:active{transform:translateY(1px)}
+#drawOv{place-items:stretch;background:var(--tray)}
+.drawwrap{display:flex;flex-direction:column;gap:10px;min-height:0;height:100%}
+.drawhead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.drawhead h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:24px;color:var(--volt)}
+.drawhead p{margin:0;color:var(--muted);font-size:13px}
+#pad{flex:1;min-height:180px;width:100%;border-radius:16px;background:#262d42;touch-action:none;display:block}
+.drawbar{display:flex;gap:10px;flex-wrap:wrap}
+.go{align-self:flex-start;padding:14px 28px;border-radius:14px;background:var(--volt);color:var(--volt-ink);font-size:22px;box-shadow:0 5px 0 #8a6200}
+.go:active{transform:translateY(4px);box-shadow:0 1px 0 #8a6200}
+.big{font-family:var(--f-display);font-size:64px;color:var(--paper);line-height:1}
+.toast{position:fixed;left:50%;top:22%;width:max-content;max-width:90vw;text-align:center;transform:translateX(-50%);font-family:var(--f-display);font-size:30px;color:var(--volt);
+  pointer-events:none;opacity:0;transition:opacity .2s, transform .4s;text-shadow:0 2px 0 #000}
+.toast.show{opacity:1;transform:translate(-50%,-10px)}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+@media (max-height:420px){.punch{width:92px;height:92px;font-size:22px}.zbtn{width:48px;height:48px}}
+</style>
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="grp">
+    <div class="stat"><small id="scoreLbl">分数</small><b id="score">0</b></div>
+    <div class="stat" id="levelStat"><small>第几块</small><b id="level">1</b></div>
+    <div class="stat" id="comboStat"><small>连击</small><b id="combo">0</b></div>
+    <div class="stat" id="eyeStat" hidden><small>眼睛干涩</small><b id="eye">0%</b></div>
+    <div class="stat" id="timeStat"><small>剩余时间</small><b id="time">60</b></div>
+  </div>
+  <div class="grp">
+    <span class="lives" id="lives" aria-label="剩余饼干"></span>
+    <button class="chip" id="modeChip" type="button">陀螺仪未开启</button>
+    <button class="chip" id="menuChip" type="button">菜单</button>
+  </div>
+</div>
+
+<div class="hand left">
+  <div class="zoompad">
+    <div style="display:flex;gap:6px">
+      <button class="btn tbtn" id="tTip" type="button">针头：圆</button>
+      <button class="btn tbtn blink" id="blinkBtn" type="button" hidden>眨眼</button>
+    </div>
+    <button class="btn zbtn" id="zin" type="button" aria-label="放大视角">＋</button>
+    <span class="zlabel" id="zlabel">视角 1.0×</span>
+    <button class="btn zbtn" id="zout" type="button" aria-label="缩小视角">－</button>
+  </div>
+  <span class="tag">左手 · 针头和视角</span>
+</div>
+<div class="hand right">
+  <button class="btn punch" id="punch" type="button">打孔!</button>
+  <span class="tag">右手 · 扎下去</span>
+</div>
+
+<div class="tools" id="tools" hidden>
+  <button class="btn tbtn" id="tMenu" type="button" aria-expanded="false">创作工具 ▾</button>
+</div>
+<div class="tools" id="toolPanel" hidden style="top:calc(100px + env(safe-area-inset-top,0px))">
+  <button class="btn tbtn" id="tDone" type="button" data-only="engrave">完成 · 打分</button>
+  <button class="btn tbtn" id="tTpl" type="button" data-only="engrave">换图案</button>
+  <button class="btn tbtn" id="tShape" type="button">换形状</button>
+  <button class="btn tbtn" id="tDraw" type="button" data-only="create">画新形状</button>
+  <button class="btn tbtn" id="tUndo" type="button">撤销</button>
+  <button class="btn tbtn" id="tClear" type="button">清空</button>
+  <button class="btn tbtn" id="tExport" type="button" data-only="create">导出代码</button>
+  <button class="btn tbtn" id="tImport" type="button" data-only="create">导入代码</button>
+  <button class="btn tbtn" id="tSave" type="button">分享截图</button>
+  <button class="btn tbtn" id="tSend" type="button">送走 · 下一块</button>
+</div>
+
+<div class="lids" id="lids" aria-hidden="true"><i></i><i></i></div>
+<div class="toast" id="toast"></div>
+<div class="count" id="count" hidden><div><b id="countNum">3</b><span>端稳手机，保持这个握姿</span></div></div>
+
+<div class="ov" id="startOv">
+  <div class="card startcard">
+    <div class="col">
+      <h1>雷霆大针管<br><span>苏打饼干打孔</span></h1>
+      <p>苏打饼干上的小孔是为了烘烤时放气。饼干坐着传送带一块块送过来，你负责扎孔。</p>
+      <ul>
+        <li><b>晃手机</b><span>倾斜手机移动针管。只能用陀螺仪，手指拖不动它</span></li>
+        <li><b>左手</b><span>点「针头」换孔的形状；＋ / － 放大缩小视角，放大后针管移动更慢、瞄得更准</span></li>
+        <li><b>右手</b><span>按住「打孔!」蓄力，松手扎下去：按一下就松太轻、扎不进去；短按是白孔，稍久是灰孔，按满是黑孔</span></li>
+        <li><b>闯关</b><span>扎穿每个虚线圈，越靠近圈心分越高（10～100），连击加分；一整行或一整列扎完、而且孔真的连成一条直线，额外 +100（每个都完美正中再 +200）；扎歪 3 次饼干就裂。第 2 块起圈里会写「白 / 灰 / 黑」，力度对了 +30；第 3 块起目标会变成星、心、方等形状，要换成同样的针头，形状对了 +30。力度或形状不对，这个孔的分数减半</span></li>
+        <li><b>刻印</b><span>饼干上有一个虚线图案，按住「刻」不放、晃手机让针沿着虚线走，刻出这个形状。刻完点「完成」打分，看你描得多准</span></li>
+        <li><b>饼干店</b><span>小镇地图上有加工厂、饼干店、袋鼠外卖、改装店。晚上去加工厂打饼干，白天去饼干店卖、让袋鼠送外卖，赚的钱去改装店强化自己。花纹越漂亮越值钱。白天偶尔有客人来定制，接单后当晚做好、第二天卖给他，能拿 3 倍价钱</span></li>
+        <li><b>创作</b><span>没有目标圈和分数，换针头、换饼干形状，扎出自己的图案，还能导出成代码发给朋友</span></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="cal" id="calBox">
+        <div class="level" aria-hidden="true"><div class="bubble" id="bubble"></div></div>
+        <div>
+          <h2 id="calTitle">第一步：校准陀螺仪</h2>
+          <p id="calMsg">横屏、双手拿好手机，摆成你玩起来最舒服的角度，然后点「校准」。这个角度就是针管不动的位置。</p>
+          <button class="btn calbtn" id="calBtn" type="button">校准</button>
+        </div>
+      </div>
+      <p style="margin:0;color:var(--paper);font-weight:800">第二步：选模式</p>
+      <div class="seg" id="timeSeg" role="group" aria-label="闯关限时">
+        <span style="color:var(--muted);font-size:13px;align-self:center">闯关限时</span>
+        <button class="btn" type="button" data-t="60" aria-pressed="true">60 秒</button>
+        <button class="btn" type="button" data-t="90" aria-pressed="false">90 秒</button>
+        <button class="btn" type="button" data-t="120" aria-pressed="false">120 秒</button>
+        <button class="btn" type="button" data-t="0" aria-pressed="false">不限时</button>
+      </div>
+      <div class="modes">
+        <button class="btn go" id="startBtn" type="button" disabled>闯关开扎</button>
+        <button class="btn ghost" id="createBtn" type="button" disabled>创作模式</button>
+        <button class="btn ghost" id="engraveBtn" type="button" disabled>刻印模式</button>
+        <button class="btn ghost" id="shopBtn" type="button" disabled>饼干店</button>
+      </div>
+      <button class="link" id="drawBtn" type="button">自定义饼干形状（已有 <span id="customCount">0</span> 个）</button>
+      <button class="link" id="tipBtn" type="button">针头形状：圆</button>
+      <button class="link" id="vibeBtn" type="button">震动：开</button>
+      <button class="link" id="blinkToggle" type="button">眨眼挑战：关</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label for="playerName" style="color:var(--muted);font-size:13px">你的名字</label>
+        <input id="playerName" type="text" maxlength="10" placeholder="上榜用" style="flex:1;min-width:110px;padding:10px 12px;border-radius:12px;border:1.5px solid #3a4462;background:#262d42;color:var(--paper);font:500 15px var(--f-body)">
+        <button class="btn ghost" id="boardBtn" type="button" style="font-size:15px;padding:9px 14px">排行榜</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="drawOv" hidden>
+  <div class="drawwrap">
+    <div class="drawhead">
+      <h2>画一块饼干</h2>
+      <p>用手指画出饼干的外轮廓，一笔画完，松手后首尾会自动连上。</p>
+    </div>
+    <canvas id="pad"></canvas>
+    <div class="drawbar">
+      <input id="shapeName" type="text" maxlength="8" placeholder="给它起个名字" style="flex:1;min-width:120px;padding:10px 12px;border-radius:12px;border:1.5px solid #3a4462;background:#262d42;color:var(--paper);font:500 15px var(--f-body)">
+      <button class="btn ghost" id="padClear" type="button">重画</button>
+      <button class="btn ghost" id="padCancel" type="button">取消</button>
+      <button class="btn go" id="padSave" type="button">保存形状</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="codeOv" hidden>
+  <div class="card">
+    <h1 id="codeTitle">导出代码</h1>
+    <p id="codeMsg"></p>
+    <textarea id="codeText" rows="5" style="width:100%;box-sizing:border-box;padding:10px;border-radius:12px;border:1.5px solid #3a4462;background:#262d42;color:var(--paper);font:12px/1.4 ui-monospace,Menlo,monospace;resize:vertical;-webkit-user-select:text;user-select:text"></textarea>
+    <div class="modes">
+      <button class="btn go" id="codeAct" type="button">复制</button>
+      <button class="btn ghost" id="codeClose" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="tiltOv" hidden>
+  <div class="card">
+    <h1>需要<span>陀螺仪</span></h1>
+    <p id="tiltMsg"></p>
+    <button class="btn go" id="tiltBtn" type="button">开启陀螺仪</button>
+  </div>
+</div>
+
+<div class="ov" id="boardOv" hidden>
+  <div class="card">
+    <h1>排行榜</h1>
+    <div class="seg" id="scopeSeg" role="group" aria-label="范围">
+      <button class="btn" type="button" data-s="online" aria-pressed="true">全网</button>
+      <button class="btn" type="button" data-s="local" aria-pressed="false">本机</button>
+    </div>
+    <div class="seg" id="boardSeg" role="group" aria-label="排行榜分类">
+      <button class="btn" type="button" data-k="g60" aria-pressed="true">闯关 60 秒</button>
+      <button class="btn" type="button" data-k="g90" aria-pressed="false">90 秒</button>
+      <button class="btn" type="button" data-k="g120" aria-pressed="false">120 秒</button>
+      <button class="btn" type="button" data-k="g0" aria-pressed="false">不限时</button>
+      <button class="btn" type="button" data-k="engrave" aria-pressed="false">刻印</button>
+    </div>
+    <ol id="boardList" class="board"></ol>
+    <p style="font-size:12px" id="boardNote">排行榜记录在这部手机上（前 10 名）。</p>
+    <button class="btn ghost" id="boardClose" type="button" style="align-self:flex-start">关闭</button>
+  </div>
+</div>
+
+<div class="ov" id="shareOv" hidden>
+  <div class="card" style="align-items:center;text-align:center">
+    <img id="shareImg" alt="成绩截图" style="max-height:min(56vh,520px);width:auto;max-width:100%;border-radius:14px;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto">
+    <p id="shareTip">长按图片可以保存到相册，或直接发给朋友</p>
+    <div class="modes" style="justify-content:center">
+      <button class="btn go" id="shareGo" type="button">分享</button>
+      <button class="btn ghost" id="shareClose" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="shopOv" hidden>
+  <div class="card shopcard">
+    <div class="shophead">
+      <h1>饼干镇 <span id="shopDay">第 1 天 · 傍晚</span></h1>
+      <div class="money" id="shopMoney">¥0</div>
+    </div>
+    <p id="shopHint"></p>
+    <div class="town" id="town">
+      <button class="btn place" type="button" data-p="mod">
+        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="6" y="18" width="52" height="28" rx="3" fill="#3a4462"/><path d="M2 20 32 4l30 16z" fill="#ff5a5f"/><path d="M38 26a7 7 0 0 0-9 9l-8 8 3 3 8-8a7 7 0 0 0 9-9l-4 4-3-3z" fill="#f3ead6"/></svg>
+        <b>改装店</b><small id="pMod">强化针管和身体</small>
+      </button>
+      <button class="btn place" type="button" data-p="bakery">
+        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="6" y="18" width="52" height="28" rx="3" fill="#3a4462"/><path d="M2 20h60l-6-12H8z" fill="#ffc61a"/><path d="M2 20h10v4H2zm20 0h10v4H22zm20 0h10v4H42z" fill="#f3ead6"/><rect x="20" y="28" width="24" height="14" rx="2" fill="#e7bd72"/><circle cx="27" cy="35" r="1.6" fill="#5a3410"/><circle cx="37" cy="35" r="1.6" fill="#5a3410"/></svg>
+        <b>饼干店</b><small id="pBakery">白天开门卖饼干</small>
+      </button>
+      <button class="btn place" type="button" data-p="roo">
+        <svg viewBox="0 0 64 48" aria-hidden="true"><rect x="6" y="18" width="52" height="28" rx="3" fill="#3a4462"/><path d="M2 20 32 6l30 14z" fill="#6fdc8c"/><path d="M26 44c-2-6 0-12 6-14l3-8 2 1-1 6c4 0 7 3 7 7l6 8h-4l-4-5c-2 2-5 3-8 3l-1 2z" fill="#d9a066"/><rect x="40" y="30" width="10" height="8" rx="1" fill="#ffc61a"/></svg>
+        <b>袋鼠外卖</b><small id="pRoo">未开通</small>
+      </button>
+      <button class="btn place" type="button" data-p="factory">
+        <svg viewBox="0 0 64 48" aria-hidden="true"><path d="M4 46V24l14 8v-8l14 8v-8l14 8V10h8v36z" fill="#3a4462"/><rect x="46" y="4" width="8" height="8" fill="#9aa3bd"/><path d="M8 40h48" stroke="#ffc61a" stroke-width="3" stroke-dasharray="4 4"/></svg>
+        <b>加工厂</b><small id="pFactory">晚上来打饼干</small>
+      </button>
+    </div>
+    <div class="modes">
+      <button class="btn ghost" id="shopMenu" type="button">回菜单</button>
+    </div>
+    <button class="link" id="shopReset" type="button">重新开店（清空进度）</button>
+  </div>
+</div>
+
+<div class="ov" id="placeOv" hidden>
+  <div class="card shopcard">
+    <div class="shophead">
+      <h1 id="placeTitle">改装店</h1>
+      <div class="money" id="placeMoney">¥0</div>
+    </div>
+    <p id="placeDesc"></p>
+    <div id="placeBody" style="display:flex;flex-direction:column;gap:12px"></div>
+    <button class="btn ghost" id="placeBack" type="button" style="align-self:flex-start">回地图</button>
+  </div>
+</div>
+
+<div class="ov" id="nightOv" hidden>
+  <div class="card">
+    <h1>天亮了</h1>
+    <p id="nightSum"></p>
+    <div class="inv" id="nightInv"></div>
+    <div class="modes">
+      <button class="btn go" id="dayBtn" type="button">去饼干店开门</button>
+      <button class="btn ghost" id="nightMap" type="button">回地图</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov day" id="dayOv" hidden>
+  <div class="daywrap">
+    <div class="dayhead">
+      <b id="dayTitle">第 1 天 · 白天</b>
+      <span class="money" id="dayMoney">¥0</span>
+      <span class="daytime"><i id="dayBar"></i></span>
+      <button class="btn tbtn" id="dayClose" type="button">提前打烊</button>
+    </div>
+    <p class="dayhint">先点一位客人，再点柜台上的饼干卖给他。看清他要的形状、星级和花纹。</p>
+    <div class="custs" id="custs"></div>
+    <div class="inv counter" id="counter"></div>
+  </div>
+</div>
+
+<div class="ov" id="reportOv" hidden>
+  <div class="card">
+    <h1 id="repTitle">账本</h1>
+    <table class="ledger"><tbody id="repTable"></tbody></table>
+    <p id="repNote"></p>
+    <button class="btn go" id="repBack" type="button" style="align-self:flex-start">回地图</button>
+  </div>
+</div>
+
+<div class="ov" id="overOv" hidden>
+  <div class="card">
+    <h1 id="overTitle">饼干用完了</h1>
+    <div class="big" id="finalScore">0</div>
+    <p id="finalNote"></p>
+    <p id="finalRank" style="color:var(--volt);font-weight:800"></p>
+    <div class="modes">
+      <button class="btn go" id="againBtn" type="button">再来一盒</button>
+      <button class="btn ghost" id="shareScoreBtn" type="button">分享成绩</button>
+      <button class="btn ghost" id="overBoardBtn" type="button">排行榜</button>
+      <button class="btn ghost" id="overMenuBtn" type="button">回菜单</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR}
+addEventListener('resize',resize);resize();
+
+// ---------- world ----------
+const CW=320,CH=200; // cracker in world units (real soda cracker ~ 8 x 5 cm)
+let S; // state
+let blinkOn=(()=>{try{return localStorage.getItem('sodaBlink')==='1'}catch(e){return false}})();
+let timeLimit=60;
+// ---------- cracker shapes ----------
+const tctx=document.createElement('canvas').getContext('2d'); // identity transform: for inside tests
+function scallopRect(w,h){
+  const p=new Path2D(),step=16,r=3.2,x0=-w/2,y0=-h/2;
+  p.moveTo(x0+8,y0);
+  for(let x=x0+8;x<-x0-8-step/2;x+=step){p.lineTo(x+step/2-r,y0);p.arc(x+step/2,y0,r,Math.PI,0,true)}
+  p.arcTo(-x0,y0,-x0,y0+8,8);
+  for(let y=y0+8;y<-y0-8-step/2;y+=step){p.lineTo(-x0,y+step/2-r);p.arc(-x0,y+step/2,r,-Math.PI/2,Math.PI/2,true)}
+  p.arcTo(-x0,-y0,-x0-8,-y0,8);
+  for(let x=-x0-8;x>x0+8+step/2;x-=step){p.lineTo(x-step/2+r,-y0);p.arc(x-step/2,-y0,r,0,Math.PI,true)}
+  p.arcTo(x0,-y0,x0,-y0-8,8);
+  for(let y=-y0-8;y>y0+8+step/2;y-=step){p.lineTo(x0,y-step/2+r);p.arc(x0,y-step/2,r,Math.PI/2,-Math.PI/2,true)}
+  p.arcTo(x0,y0,x0+8,y0,8);p.closePath();return p;
+}
+// closed outline from a polar/param function, with little bite marks along the edge like a docked cracker
+function wavy(fn,bumps){
+  const p=new Path2D(),N=360;
+  for(let i=0;i<=N;i++){const t=i/N*Math.PI*2;const [x,y]=fn(t);const k=1-0.025*Math.pow(Math.max(0,Math.cos(t*bumps)),8);i?p.lineTo(x*k,y*k):p.moveTo(x*k,y*k)}
+  p.closePath();return p;
+}
+const SHAPES=[
+  {name:'长方苏打',w:320,h:200,path:scallopRect(320,200)},
+  {name:'圆形苏打',w:220,h:220,path:wavy(t=>[110*Math.cos(t),110*Math.sin(t)],24)},
+  {name:'方块苏打',w:220,h:220,path:scallopRect(220,220)},
+  {name:'六角苏打',w:250,h:220,path:wavy(t=>{const a=((t%(Math.PI/3))+Math.PI/3)%(Math.PI/3)-Math.PI/6;const r=110/Math.cos(a)*0.985;return [r*Math.cos(t)*1.12,r*Math.sin(t)]},30)},
+  {name:'爱心苏打',w:250,h:230,path:wavy(t=>{const x=16*Math.pow(Math.sin(t),3),y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));return [x*7.6,y*7.6-19]},28)},
+  {name:'椭圆苏打',w:320,h:200,path:wavy(t=>[158*Math.cos(t),98*Math.sin(t)],28)},
+];
+const BUILTIN=SHAPES.length;
+function inside(shape,x,y,m=0){
+  if(!tctx.isPointInPath(shape.path,x,y))return false;
+  if(!m)return true;
+  for(let a=0;a<8;a++)if(!tctx.isPointInPath(shape.path,x+Math.cos(a*Math.PI/4)*m,y+Math.sin(a*Math.PI/4)*m))return false;
+  return true;
+}
+function newCracker(level,shapeIdx){
+  let si=shapeIdx??((level-1)%SHAPES.length);
+  const shape=SHAPES[si];
+  // denser grids as levels go up
+  // a regular grid clipped to the shape; widen the gap until the hole count is playable
+  const hr=Math.round(shape.w/20*10)/10; // hole radius: diameter is 1/10 of the cracker width
+  const cap=Math.min(8+level,16);let gap=hr*2+14,targets;
+  do{
+    targets=[];let r=0;
+    for(let y=-shape.h/2+gap/2;y<shape.h/2;y+=gap,r++){let c=0;
+      for(let x=-shape.w/2+gap/2;x<shape.w/2;x+=gap,c++){
+        if(inside(shape,x,y,hr+6))targets.push({x,y,r,c,done:false,need:level>=2?Math.floor(Math.random()*3):null,needTip:level>=3?Math.floor(Math.random()*TIPS.length):null});
+      }}
+    gap+=2;
+  }while(targets.length>cap&&gap<200);
+  // centre the grid inside the shape
+  if(targets.length){const xs=targets.map(t=>t.x),ys=targets.map(t=>t.y);
+    let dx=-(Math.min(...xs)+Math.max(...xs))/2,dy=-(Math.min(...ys)+Math.max(...ys))/2;
+    if(targets.every(t=>inside(shape,t.x+dx,t.y+dy,hr+4)))targets.forEach(t=>{t.x+=dx;t.y+=dy})}
+  // rows and columns of 3+ holes are bonus lines
+  const lines=[];
+  for(const key of ['r','c']){const g={};targets.forEach((t,i)=>(g[t[key]]=g[t[key]]||[]).push(i));
+    for(const k in g)if(g[k].length>=3)lines.push({ids:g[k],kind:key==='r'?'横线':'竖线',done:false})}
+  const rnd=(m)=>{for(let i=0;i<40;i++){const x=(Math.random()-.5)*shape.w,y=(Math.random()-.5)*shape.h;if(inside(shape,x,y,m))return {x,y}}return {x:0,y:0}};
+  const salt=[];for(let i=0;i<22;i++){const q=rnd(6);salt.push({...q,r:1+Math.random()*2.2,a:Math.random()*6})}
+  const specks=[];for(let i=0;i<80;i++){const q=rnd(5);specks.push({...q,r:.6+Math.random()*1.6,d:Math.random()})}
+  // a hand-drawn shape too small for 3 holes: use the next shape in the game
+  if(shapeIdx==null&&targets.length<3&&si>=BUILTIN)return newCracker(level,0);
+  const cr={shape,shapeIdx:si,hr,targets,lines,salt,specks,misses:[],cracks:[],broken:0,flash:[],free:[],kind:'plain',dust:null};
+  // some crackers come out of the oven dusty; gold and jade ones are always hidden under dust
+  const roll=Math.random();
+  if(roll<.05)cr.kind='gold';else if(roll<.08)cr.kind='jade';
+  if(cr.kind!=='plain'||Math.random()<.22)cr.dust=makeDust(shape,cr.kind!=='plain'?1:.55);
+  return cr;
+}
+function makeDust(shape,cover){
+  const d=[],step=26;
+  for(let y=-shape.h/2;y<=shape.h/2;y+=step)for(let x=-shape.w/2;x<=shape.w/2;x+=step){
+    if(Math.random()>cover)continue;const jx=x+(Math.random()-.5)*14,jy=y+(Math.random()-.5)*14;
+    if(inside(shape,jx,jy))d.push({x:jx,y:jy,r:22+Math.random()*12,a:.95,seed:Math.random()*1000})}
+  return d;
+}
+function dustAt(cr,x,y){if(!cr.dust)return 0;let m=0;for(const b of cr.dust){if(b.a<=0)continue;const k=1-Math.hypot(b.x-x,b.y-y)/b.r;if(k>0)m=Math.max(m,b.a*Math.min(1,k*1.6))}return m}
+function dustLeft(cr){if(!cr.dust||!cr.dust.length)return 0;return cr.dust.reduce((a,b)=>a+Math.max(0,b.a),0)/(cr.dust.length*.95)}
+const KIND={plain:{name:'',mult:1},gold:{name:'黄金苏打饼',mult:2},jade:{name:'翡翠苏打饼',mult:3}};
+function reset(){
+  S={score:0,level:1,combo:0,lives:3,needle:{x:-CW/2-20,y:0},vel:{x:0,y:0},zoom:1,ns:1,timeLimit,timeLeft:timeLimit,countdown:0,cam:{x:0,y:0},
+     mode:'game',tip:S?S.tip:loadTip(),cracker:newCracker(1),trans:null,beltPos:0,plunge:0,bolts:[],shake:0,t:0,noiseT:Math.random()*100,running:true,breakAnim:0,pending:null,best:loadBest()};
+  hud();
+}
+function loadBest(){try{return +localStorage.getItem('sodaBest')||0}catch(e){return 0}}
+function saveBest(v){try{localStorage.setItem('sodaBest',v)}catch(e){}}
+
+// ---------- input: tilt ----------
+let tiltMode=false,tilt={x:0,y:0},raw={x:0,y:0},base=null,gotTilt=false,calibrated=false,listening=false;
+function onOri(e){
+  if(e.beta==null||e.gamma==null)return;
+  gotTilt=true;
+  const ang=(screen.orientation&&screen.orientation.angle)??window.orientation??0;
+  let x,y;
+  if(ang===90){x=e.beta;y=-e.gamma}
+  else if(ang===-90||ang===270){x=-e.beta;y=e.gamma}
+  else{x=e.gamma;y=e.beta}
+  raw.x=x;raw.y=y;
+  if(!base)base={x,y};
+  tilt.x=x-base.x;tilt.y=y-base.y;
+}
+async function enableTilt(){
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r=await DeviceOrientationEvent.requestPermission(); if(r!=='granted'){setMode(false);return false}
+    }
+    if(!listening){addEventListener('deviceorientation',onOri);listening=true}
+    if(!gotTilt)await new Promise(r=>setTimeout(r,900));
+    setMode(gotTilt);return gotTilt;
+  }catch(e){setMode(false);return false}
+}
+// ---------- calibration on the start screen ----------
+function calibrateNow(){
+  base={x:raw.x,y:raw.y};tilt.x=0;tilt.y=0;calibrated=true;
+  $('calBox').classList.add('ok');$('calTitle').textContent='已校准 ✓';
+  $('calMsg').textContent='保持这个握姿开玩。想换个角度就再点一次「重新校准」，游戏中也可以点右上角的黄色按钮校准。';
+  $('calBtn').textContent='重新校准';$('startBtn').disabled=false;$('createBtn').disabled=false;$('engraveBtn').disabled=false;$('shopBtn').disabled=false;
+}
+$('calBtn').addEventListener('click',async()=>{
+  if(!gotTilt){
+    $('calMsg').textContent='正在开启陀螺仪…';
+    const ok=await enableTilt();
+    if(!ok){$('calMsg').textContent='没检测到陀螺仪。请用手机的 Safari 或 Chrome 打开（微信里请点右上角「在浏览器打开」），iPhone 弹窗时点「允许」，然后再点一次「校准」。';return}
+  }
+  calibrateNow();buzz(30);
+});
+function setMode(t){
+  tiltMode=t;const c=$('modeChip');c.textContent=t?'重新校准':'陀螺仪未开启';c.classList.toggle('on',t);
+  // without a gyroscope the game cannot be played: block it
+  if(S&&S.running){
+    $('tiltOv').hidden=t;
+    if(!t)$('tiltMsg').textContent='这个游戏只能靠晃手机控制针管。请用手机浏览器打开，点下面的按钮允许访问「动作与方向」。电脑和部分内嵌浏览器（如微信内）可能不支持，可以换 Safari 或 Chrome 打开。';
+  }
+}
+$('modeChip').addEventListener('click',()=>{if(tiltMode){base={x:raw.x,y:raw.y};toast('已重新校准')}else{enableTilt()}});
+
+// ---------- needle moves ONLY by gyroscope; fingers can only sweep dust off a cracker ----------
+let brush=null;
+function brushAt(cx,cy){
+  if(!S||!S.running||S.trans)return;const cr=S.cracker;if(!cr.dust)return;
+  const sc=viewScale(),wx=(cx-W/2)/sc+S.cam.x,wy=(cy-H/2-10)/sc+S.cam.y,R=24;
+  const moved=brush?Math.hypot(cx-brush.x,cy-brush.y):0;brush={x:cx,y:cy};
+  let hit=false;for(const b of cr.dust){if(b.a<=0)continue;const d=Math.hypot(b.x-wx,b.y-wy);if(d<b.r+R){b.a=Math.max(0,b.a-Math.min(.35,.04+moved/sc*.006));hit=true}}
+  if(hit){S._brushBuzz=(S._brushBuzz||0)+moved;if(S._brushBuzz>60){S._brushBuzz=0;buzz([6])}}
+  const left=dustLeft(cr);
+  if(left<.35&&!cr.revealed){cr.revealed=true;
+    if(cr.kind!=='plain'){toast('开出了'+KIND[cr.kind].name+'! 分数 ×'+KIND[cr.kind].mult,1600);sfx('clear');buzz([60,40,60,40,150])}else toast('扫干净了')}
+  if(left<.04)cr.dust=null;
+}
+cv.addEventListener('pointerdown',e=>{brush=null;brushAt(e.clientX,e.clientY);try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')brushAt(e.clientX,e.clientY)});
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>{brush=null}));
+
+$('tiltBtn').addEventListener('click',async()=>{$('tiltMsg').textContent='正在开启…';if(await enableTilt())base={x:raw.x,y:raw.y}});
+
+// ---------- buttons (hold to repeat zoom) ----------
+let zoomHold=0;
+function bindHold(el,dir){
+  el.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();zoomHold=dir;el.classList.add('down');zoomBy(dir)});
+  ['pointerup','pointerleave','pointercancel'].forEach(t=>el.addEventListener(t,()=>{if(zoomHold===dir)zoomHold=0;el.classList.remove('down')}));
+  el.addEventListener('click',e=>{if(e.detail===0)zoomBy(dir)}); // keyboard
+}
+bindHold($('zin'),1);bindHold($('zout'),-1);
+// left hand: zoom the view (needle size stays fixed); zoomed in, the camera follows the needle and aiming gets finer
+function zoomBy(d){if(!S)return;S.zoom=Math.max(1,Math.min(S.zoomMax||3,+(S.zoom+d*.25).toFixed(2)));$('zlabel').textContent='视角 '+S.zoom.toFixed(1)+'×'}
+const pb=$('punch');
+// hold to charge, release to punch: short = white, medium = grey, long = black
+const DEPTH=['白','灰','黑'],CHARGE_T=[.4,.9],TAP_T=.12;
+const depthOf=c=>{c*=(S&&S.chargeMul)||1;return c<CHARGE_T[0]?0:c<CHARGE_T[1]?1:2};
+// below TAP_T the press counts as a tap (too light)
+function canPunch(){return S&&S.running&&!(S.countdown>0)&&!(S.plunge>0)&&!(S.breakAnim>0)&&!S.trans}
+pb.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(!canPunch())return;
+  try{pb.setPointerCapture(e.pointerId)}catch(_){}
+  pb.classList.add('down');
+  if(S.mode==='engrave'){S.carving=true;S.cracker.strokes.push([]);S._buzzT=0;return}
+  S.charging=true;S.charge=0;S._cd=-1});
+function release(){
+  if(S&&S.carving){S.carving=false;pb.classList.remove('down');const st=S.cracker.strokes;if(st.length&&st[st.length-1].length<2)st.pop();hud();return}
+  if(!S||!S.charging)return;S.charging=false;pb.classList.remove('down');pb.textContent=S.mode==='engrave'?'按住刻':'打孔!';pb.dataset.d='';
+  if(canPunch()){
+    if(S.charge<TAP_T){ // a quick tap is too light to go in
+      buzz([30,40,30,40,30]);S.shake=.5;S.wiggle=.4;toast('力度太轻! 按住蓄力再松手');sfx('miss')}
+    else punch(depthOf(S.charge));
+  }S.charge=0}
+['pointerup','pointercancel'].forEach(t=>pb.addEventListener(t,release));
+pb.addEventListener('click',e=>{if(e.detail===0&&canPunch())punch(1)});
+
+// ---------- audio (starts after tap) ----------
+let ac=null;
+function sfx(type,arg){
+  if(!ac)return;const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);
+  if(type==='tick'){o.type='sine';o.frequency.setValueAtTime(600,t);g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.06)}
+  else if(type==='hit'){o.type='square';o.frequency.setValueAtTime([1100,760,420][arg??1],t);o.frequency.exponentialRampToValueAtTime(220,t+.12);g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.15)}
+  else if(type==='miss'){o.type='sawtooth';o.frequency.setValueAtTime(160,t);o.frequency.exponentialRampToValueAtTime(60,t+.25);g.gain.setValueAtTime(.15,t);g.gain.exponentialRampToValueAtTime(.001,t+.3)}
+  else if(type==='belt'){o.type='sawtooth';o.frequency.setValueAtTime(70,t);o.frequency.linearRampToValueAtTime(90,t+.3);o.frequency.linearRampToValueAtTime(60,t+.4);g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.4)}
+  else{o.type='triangle';o.frequency.setValueAtTime(520,t);o.frequency.setValueAtTime(780,t+.08);o.frequency.setValueAtTime(1040,t+.16);g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.35)}
+  o.start(t);o.stop(t+.4);
+}
+// Vibration: Android uses navigator.vibrate; iPhone Safari has no vibrate API, so we tap a hidden
+// iOS "switch" checkbox, which makes the Taptic Engine click (works inside a tap, iOS 18+).
+let vibeOn=(()=>{try{return localStorage.getItem('sodaVibe')!=='0'}catch(e){return true}})();
+function iosTick(){
+  try{const l=document.createElement('label'),i=document.createElement('input');
+    i.type='checkbox';i.setAttribute('switch','');l.setAttribute('aria-hidden','true');l.style.display='none';
+    l.appendChild(i);document.head.appendChild(l);l.click();l.remove()}catch(e){}
+}
+// Safari only lets the haptic fire inside a real touch, so on iPhone a buzz is queued and played
+// on the next touchend/click (the punch fires on pointerup, which comes just before touchend).
+let hapPending=0;
+function flushHaptic(){if(!hapPending)return;const n=Math.min(hapPending,3);hapPending=0;for(let k=0;k<n;k++)iosTick()}
+['touchend','click'].forEach(t=>document.addEventListener(t,flushHaptic,true));
+function buzz(p){
+  if(!vibeOn||!p)return;
+  if(navigator.vibrate){try{navigator.vibrate(p)}catch(e){};return}
+  hapPending=Math.max(hapPending,Array.isArray(p)?Math.ceil(p.length/2):1);
+  iosTick(); // also try right away; harmless if Safari ignores it
+}
+// strength of each punch: white light, grey medium, black heavy
+const PUNCH_BUZZ=[[25],[55],[90,40,120]];
+
+// ---------- game logic ----------
+function punch(depth=1){
+  if(!S||!S.running||S.countdown>0||S.plunge>0||S.breakAnim>0||S.trans)return;
+  S.plunge=1;S.lastDepth=depth;
+  const n=S.needle,cr=S.cracker;
+  // lightning
+  if(!reduce)for(let i=0;i<5;i++)S.bolts.push({a:Math.random()*Math.PI*2,life:1,len:30+Math.random()*30});
+  if(S.mode==='create'){
+    if(inside(cr.shape,n.x,n.y)){cr.free.push({x:Math.round(n.x*10)/10,y:Math.round(n.y*10)/10,t:S.tip,r:Math.round(cr.hr*S.ns/S.zoom*10)/10,d:depth});sfx('hit',depth);buzz(PUNCH_BUZZ[depth]);toast(DEPTH[depth]+'孔')}
+    else toast('扎到传送带了');
+    hud();return;
+  }
+  let best=null,bd=1e9;
+  for(const t of cr.targets){if(t.done)continue;const d=Math.hypot(t.x-n.x,t.y-n.y);if(d<bd){bd=d;best=t}}
+  if(dustAt(cr,n.x,n.y)>.45){S.plunge=0;S.bolts=[];toast('上面有灰，先用手指把灰扫掉');buzz([20]);return}
+  const onCracker=inside(cr.shape,n.x,n.y);
+  const HIT=cr.hr;
+  if(best&&bd<=HIT){
+    // the hole lands exactly where the needle went in
+    best.done=true;best.hx=n.x;best.hy=n.y;best.tip=S.tip;best.pr=cr.hr*S.ns/S.zoom;best.depth=depth;S.combo++;
+    const acc=1-bd/HIT; // 1 = dead centre, 0 = on the rim
+    (cr.accs=cr.accs||[]);
+    const base=Math.round(10+90*acc*acc);
+    let pts=(base+(S.combo-1)*5)*KIND[cr.kind||'plain'].mult,tail=cr.kind&&cr.kind!=='plain'?'　'+KIND[cr.kind].name+' ×'+KIND[cr.kind].mult:'';
+    // from the 2nd cracker each ring asks for a punch strength
+    const rightDepth=best.need==null||best.need===depth;
+    if(best.need!=null){if(rightDepth){pts+=30;tail='　'+DEPTH[depth]+'孔力度正好 +30'}else{pts=Math.round(pts/2);tail='　要'+DEPTH[best.need]+'孔，力度不对 减半'}}
+    // from the 3rd cracker each ring also asks for a needle tip shape
+    const rightTip=best.needTip==null||best.needTip===S.tip;
+    if(best.needTip!=null){if(rightTip){pts+=30;tail+='　'+TIPS[S.tip]+'形对了 +30'}else{pts=Math.round(pts/2);tail+='　要'+TIPS[best.needTip]+'形，形状不对 减半'}}
+    cr.accs.push(acc*(rightDepth?1:.5)*(rightTip?1:.5));
+    S.score+=pts;
+    const grade=bd<=HIT*.15?'完美正中!':bd<=HIT*.4?'很准!':bd<=HIT*.7?'还行':'擦边';best.perfect=bd<=HIT*.15&&rightDepth&&rightTip;best.ok=rightDepth&&rightTip;
+    let msg=grade+' +'+pts+tail;
+    for(const L of cr.lines){
+      if(L.done||!L.ids.includes(cr.targets.indexOf(best))||!L.ids.every(i=>cr.targets[i].done))continue;
+      L.done=true;
+      // judge the holes actually punched, not the target slots: a straight line must pass through every hole
+      const hs=L.ids.map(i=>cr.targets[i]);
+      if(!straight(hs.map(t=>[t.hx,t.hy]),Math.min(...hs.map(t=>t.pr||cr.hr))*.5)){msg+='　这条'+L.kind+'歪了，不算连线';continue}
+      S.score+=100;msg+='　连成'+L.kind+' +100';L.ok=true;
+      const perfect=hs.every(t=>t.perfect);if(perfect){S.score+=200;msg+='　完美连线 +200';L.perfectOk=true}
+      cr.flash.push({L,life:1.4,perfect});
+    }
+    sfx('hit',depth);buzz(best.perfect?[...PUNCH_BUZZ[depth],60,40,40,40,40]:PUNCH_BUZZ[depth]);toast(msg);
+    if(cr.targets.every(t=>t.done)){if(S.shop)bakeDone(cr);S.score+=50*S.level;sfx('clear');toast('整块打完! +'+50*S.level);setTimeout(nextCracker,650)}
+  }else if(onCracker){
+    S.combo=0;cr.misses.push({x:n.x,y:n.y,tip:S.tip,r:cr.hr*S.ns/S.zoom,d:depth});cr.cracks.push(makeCrack(cr,n.x,n.y,cr.hr*S.ns/S.zoom));S.shake=1;sfx('miss');buzz([150,60,150]);
+    const maxMiss=3+(S.bench||0);
+    if(cr.misses.length>=maxMiss){toast(S.shop?'裂了! 这块卖不掉了':'裂了!');if(S.shop)L().broken++;S.breakAnim=1;setTimeout(()=>{S.lives--;hud();if(S.lives<=0)gameOver();else{startTrans((S.cracker.customId&&S.shop?(S.customQ.unshift(shop.custom.find(o=>o.id===S.cracker.customId)),nextNightCracker()):nextNightCracker()),S.breakAnim);S.breakAnim=0}},900)}
+    else toast('扎歪了 '+cr.misses.length+'/'+maxMiss);
+  }else{S.combo=0;toast('扎到传送带了')}
+  hud();
+}
+// best-fit line through the hole centres; every centre must lie within tol of it
+function straight(pts,tol){
+  const n=pts.length,mx=pts.reduce((a,p)=>a+p[0],0)/n,my=pts.reduce((a,p)=>a+p[1],0)/n;
+  let sxx=0,syy=0,sxy=0;for(const[x,y]of pts){sxx+=(x-mx)**2;syy+=(y-my)**2;sxy+=(x-mx)*(y-my)}
+  const a=Math.atan2(2*sxy,sxx-syy)/2,nx=-Math.sin(a),ny=Math.cos(a); // normal of the principal direction
+  return pts.every(([x,y])=>Math.abs((x-mx)*nx+(y-my)*ny)<=tol);
+}
+// a crack starts at the rim of the bad hole and wanders across the cracker,
+// steering around other holes and stopping before it runs off the edge
+function makeCrack(cr,x,y,r){
+  const holes=cr.targets.filter(t=>t.done).map(t=>[t.hx,t.hy,t.pr||cr.hr]).concat(cr.misses.slice(0,-1).map(m=>[m.x,m.y,m.r||cr.hr]));
+  const clear=(px,py)=>inside(cr.shape,px,py,3)&&holes.every(([hx,hy,hr])=>Math.hypot(px-hx,py-hy)>hr+3);
+  const L=Math.max(9,cr.hr*.55);
+  let a=Math.random()*Math.PI*2,px=x+Math.cos(a)*r*.95,py=y+Math.sin(a)*r*.95;const pts=[[px,py]];
+  for(let i=0;i<9;i++){
+    let ok=false;
+    for(let tries=0;tries<8&&!ok;tries++){const na=a+(Math.random()-.5)*(1+tries*.35),nx=px+Math.cos(na)*L,ny=py+Math.sin(na)*L;
+      if(clear(nx,ny)&&Math.hypot(nx-x,ny-y)>r){a=na;px=nx;py=ny;ok=true}}
+    if(!ok)break;pts.push([px,py]);
+  }
+  return pts;
+}
+function nextCracker(){S.level++;hud();startTrans(nextNightCracker(),0)}
+function nextNightCracker(){return S.shop&&S.customQ&&S.customQ.length?customCracker(S.customQ.shift()):newCracker(S.level,nextShape())}
+function nextShape(){return S.shop?Math.floor(Math.random()*(S.unlocked||2)):undefined}
+// belt carries the old cracker off to the right and brings the next one in from the left
+function startTrans(next,oldBr){S.trans={old:S.cracker,next,oldBr,p:0,e:0};sfx('belt')}
+function endTrans(){S.cracker=S.trans.next;S.trans=null;if(S.cracker.customId){toast('定制单：'+S.cracker.customFor,1400);hud();return}if(S.cracker.dust&&S.mode==='game')setTimeout(()=>toast('这块落了灰，用手指扫一扫',1300),750);toast(S.mode==='engrave'?'刻印：'+S.cracker.tplName:S.mode==='create'?'新饼干：'+S.cracker.shape.name:'第'+S.level+'块：'+S.cracker.shape.name);hud()}
+function gameOver(reason){
+  if(S.shop&&S.running){nightEnd();return}
+  if(!S.running)return;S.running=false;cv.style.filter='';S.charging=false;S.carving=false;$('overTitle').textContent=reason==='time'?'时间到!':'饼干用完了';const nb=S.score>S.best;if(nb)saveBest(S.score);
+  $('finalScore').textContent=S.score;
+  $('finalNote').textContent=(nb?'新纪录! ':'最高分 '+S.best+' · ')+'扎到了第 '+S.level+' 块饼干';
+  const key='g'+(S.timeLimit||0);
+  const rk=S.score>0?addRecord(key,{name:playerName(),score:S.score,sub:'第 '+S.level+' 块'}):0;
+  S.lastKey=key;S.lastRank=rk;
+  const localTxt=rk?('本机第 '+rk+' 名'):(S.score>0?'本机没进前 10':'');
+  $('finalRank').textContent=localTxt+(onlineOn()&&S.score>0?' · 全网排名上传中…':'')+(S.score>0?'（'+boardLabel(key)+'）':'');
+  if(S.score>0){S.lastOnlineScore=S.score;postOnline(key,{name:playerName(),score:S.score,sub:'第 '+S.level+' 块'},n=>{
+    S.lastOnlineRank=n>0?n:0;$('finalRank').textContent=localTxt+(n>0?' · 全网第 '+n+' 名':' · 全网排名上传失败')+'（'+boardLabel(key)+'）'})}
+  $('overOv').hidden=false;
+}
+function hud(){
+  const em=S.mode==='engrave',cm=S.mode==='create'||em;
+  $('eyeStat').hidden=!(blinkOn&&S.running&&S.mode!=='create');$('blinkBtn').hidden=!(blinkOn&&S.mode!=='create');
+  if(S.shop){$('lives').hidden=true}
+  $('scoreLbl').textContent=S.shop?'今晚做好':em?(S.cracker.tpl?'完成度':'刻痕'):cm?'已扎孔':'分数';$('levelStat').hidden=cm;$('timeStat').hidden=cm||!S.timeLimit;$('time').textContent=Math.ceil(S.timeLeft);$('comboStat').hidden=cm;$('lives').hidden=cm;
+  $('tools').hidden=!(cm&&S.running);if(!(cm&&S.running))$('toolPanel').hidden=true;
+  $('toolPanel').querySelectorAll('[data-only]').forEach(b=>b.hidden=b.dataset.only!==S.mode);
+  $('tMenu').textContent=$('toolPanel').hidden?(em?'刻印工具 ▾':'创作工具 ▾'):'收起 ▴';
+  if(!pb.classList.contains('down'))pb.textContent=em?'按住刻':'打孔!';
+  $('tTip').hidden=em;
+  $('tTip').textContent='针头：'+TIPS[S.tip];$('tipBtn').textContent='针头形状：'+TIPS[S.tip]+'（点击切换）';
+  $('customCount').textContent=SHAPES.length-BUILTIN;
+  if(em){$('score').textContent=S.cracker.tpl?engraveScore(S.cracker).score+'%':S.cracker.strokes.reduce((a,b)=>a+b.length,0);$('zlabel').textContent='视角 '+S.zoom.toFixed(1)+'×';return}
+  if(cm){$('score').textContent=S.cracker.free.length;$('zlabel').textContent='视角 '+S.zoom.toFixed(1)+'×';return}
+  $('score').textContent=S.shop?(S.made||[]).length:S.score;$('level').textContent=S.level;$('combo').textContent=S.combo;
+  if(isFinite(S.lives))$('lives').textContent='▮'.repeat(Math.max(0,S.lives))+'▯'.repeat(Math.max(0,3-S.lives));
+  $('zlabel').textContent='视角 '+S.zoom.toFixed(1)+'×';
+}
+let tt;function toast(m,ms=700){const el=$('toast');el.textContent=m;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),ms)}
+
+// ---------- update ----------
+function viewScale(){const fit=Math.min(W/(CW+120),(H-130)/(BELT_H+60));return Math.max(.6,fit)*S.zoom}
+let zoomAcc=0;
+function update(dt){
+  S.t+=dt;
+  if(zoomHold){zoomAcc+=dt;if(zoomAcc>.18){zoomAcc=0;zoomBy(zoomHold)}}else zoomAcc=0;
+  if(S.running&&S.countdown>0){
+    const before=Math.ceil(S.countdown);S.countdown-=dt;
+    // calibrate at the end of the countdown, holding the pose the player settled into
+    if(S.countdown<=0){S.countdown=0;$('count').hidden=true;base={x:raw.x,y:raw.y};tilt.x=0;tilt.y=0;toast('开扎!');sfx('clear')}
+    else if(Math.ceil(S.countdown)!==before){$('countNum').textContent=Math.ceil(S.countdown);sfx('hit')}
+    return;
+  }
+  if(S.carving&&S.running&&!S.trans){
+    const n=S.needle,cr=S.cracker,st=cr.strokes[cr.strokes.length-1];
+    if(inside(cr.shape,n.x,n.y,2)){const l=st[st.length-1];
+      if(!l||Math.hypot(n.x-l[0],n.y-l[1])>=1.5){st.push([Math.round(n.x*10)/10,Math.round(n.y*10)/10]);S._scoreDirty=true}
+      S._buzzT+=dt;if(S._buzzT>.12){S._buzzT=0;if(navigator.vibrate&&vibeOn)try{navigator.vibrate(8)}catch(e){}}
+    }else if(st.length){cr.strokes.push([])} // lifted off the edge: start a new groove when it comes back
+    if(S._scoreDirty&&(S.t-(S._scoreAt||0))>.25){S._scoreAt=S.t;S._scoreDirty=false;hud()}
+  }
+  if(S.charging){S.charge+=dt;const d=depthOf(S.charge);if(d!==S._cd){S._cd=d;pb.textContent='蓄力 · '+DEPTH[d];pb.dataset.d=d;buzz(d?(d===2?30:15):0);if(d)sfx('tick')}}
+  // blink challenge: eyes dry out unless you press 眨眼; dry eyes blur, shake and smear the colours
+  if(blinkOn&&S.running&&S.mode!=='create'){
+    S.eye=Math.min(1.25,(S.eye||0)+dt/9*(S.eyeRate||1));
+    const k=Math.max(0,(S.eye-.45)/.55);
+    if(k>0){S.shake=Math.max(S.shake,k*.7);
+      cv.style.filter=`blur(${(k*k*5).toFixed(2)}px) saturate(${(1+k*1.8).toFixed(2)}) hue-rotate(${(Math.sin(S.t*3)*k*55).toFixed(1)}deg) contrast(${(1+k*.5).toFixed(2)})`}
+    else if(cv.style.filter)cv.style.filter='';
+    if(S.eye>=1&&!S._dryWarned){S._dryWarned=true;toast('眼睛好干! 快按「眨眼」',1200);buzz([80,60,80])}
+    const pct=Math.min(100,Math.round(S.eye*100));if(pct!==S._eyePct){S._eyePct=pct;$('eye').textContent=pct+'%';$('eyeStat').classList.toggle('warn',pct>=60);$('blinkBtn').classList.toggle('dry',pct>=60)}
+  }
+  if(S.running&&S.mode==='game'&&S.timeLimit){
+    S.timeLeft-=dt;
+    if(S.timeLeft<=0){S.timeLeft=0;hud();gameOver('time');return}
+    const sec=Math.ceil(S.timeLeft);if(sec!==S._sec){S._sec=sec;$('time').textContent=sec;$('timeStat').classList.toggle('warn',sec<=10)}
+  }
+  if(S.running&&S.breakAnim===0){
+    const n=S.needle;
+    // speed shrinks as you zoom in -> finer aim
+    const sp=210/Math.sqrt(S.zoom);
+    if(tiltMode){
+      const dz=v=>Math.abs(v)<1.5?0:(v-Math.sign(v)*1.5);
+      const tx=Math.max(-1,Math.min(1,dz(tilt.x)/22)),ty=Math.max(-1,Math.min(1,dz(tilt.y)/22));
+      S.vel.x+=(tx*sp-S.vel.x)*Math.min(1,dt*8);S.vel.y+=(ty*sp-S.vel.y)*Math.min(1,dt*8);
+    }else{S.vel.x=0;S.vel.y=0}
+    // hand tremor grows with level
+    S.noiseT+=dt;const dry=blinkOn?Math.max(0,((S.eye||0)-.45)/.55):0;
+    const tr=(Math.min(3+S.level*2.2,18)*(1-.22*(S.steady||0))+dry*26)/Math.sqrt(S.zoom);
+    n.x+=S.vel.x*dt+Math.sin(S.noiseT*2.3)*Math.cos(S.noiseT*1.1)*tr*dt*3;
+    n.y+=S.vel.y*dt+Math.cos(S.noiseT*1.9)*Math.sin(S.noiseT*0.7)*tr*dt*3;
+    const shp=S.cracker.shape;n.x=Math.max(-shp.w/2-50,Math.min(shp.w/2+50,n.x));n.y=Math.max(-BELT_H/2,Math.min(BELT_H/2,n.y));
+  }
+  // camera: at 1x look at the whole cracker, zoomed in follow the needle
+  const f=(S.zoom-1)/2,tx=S.needle.x*Math.min(1,f*1.4),ty=S.needle.y*Math.min(1,f*1.4);
+  S.cam.x+=(tx-S.cam.x)*Math.min(1,dt*6);S.cam.y+=(ty-S.cam.y)*Math.min(1,dt*6);
+  if(S.trans){const T=S.trans,pe=T.e;T.p=Math.min(1,T.p+dt/(1.4*(S.beltSpeed||1)));T.e=T.p<.5?2*T.p*T.p:1-Math.pow(-2*T.p+2,2)/2;
+    S.beltPos+=(T.e-pe)*BELT_SPAN;if(T.oldBr>0)T.oldBr=Math.min(2,T.oldBr+dt*1.5);if(T.p>=1)endTrans()}
+  if(S.plunge>0)S.plunge=Math.max(0,S.plunge-dt*4.5);
+  S.shake=Math.max(0,S.shake-dt*3);if(S.wiggle>0)S.wiggle=Math.max(0,S.wiggle-dt);
+  for(const f of S.cracker.flash)f.life-=dt;
+  for(const b of S.bolts)b.life-=dt*4;S.bolts=S.bolts.filter(b=>b.life>0);
+  if(S.breakAnim>0)S.breakAnim=Math.min(2,S.breakAnim+dt*1.5);
+}
+
+// ---------- draw ----------
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function crackerPath(){
+  // rectangle with perforated (scalloped) edges like a real soda cracker
+  const step=16,r=3.2;ctx.beginPath();
+  const x0=-CW/2,y0=-CH/2;
+  ctx.moveTo(x0+8,y0);
+  for(let x=x0+8;x<-x0-8;x+=step){ctx.lineTo(x+step/2-r,y0);ctx.arc(x+step/2,y0,r,Math.PI,0,true)}
+  ctx.arcTo(-x0,y0,-x0,y0+8,8);
+  for(let y=y0+8;y<-y0-8;y+=step){ctx.lineTo(-x0,y+step/2-r);ctx.arc(-x0,y+step/2,r,-Math.PI/2,Math.PI/2,true)}
+  ctx.arcTo(-x0,-y0,-x0-8,-y0,8);
+  for(let x=-x0-8;x>x0+8;x-=step){ctx.lineTo(x-step/2+r,-y0);ctx.arc(x-step/2,-y0,r,0,Math.PI,true)}
+  ctx.arcTo(x0,-y0,x0,-y0-8,8);
+  for(let y=-y0-8;y>y0+8;y-=step){ctx.lineTo(x0,y-step/2+r);ctx.arc(x0,y-step/2,r,Math.PI/2,-Math.PI/2,true)}
+  ctx.arcTo(x0,y0,x0+8,y0,8);ctx.closePath();
+}
+function tipPath(tip,r){
+  const p=new Path2D();
+  if(tip===1){for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.45:r*1.15;i?p.lineTo(Math.cos(a)*rr,Math.sin(a)*rr):p.moveTo(Math.cos(a)*rr,Math.sin(a)*rr)}}
+  else if(tip===2){const k=r/16*1.05;for(let i=0;i<=40;i++){const t=i/40*Math.PI*2;const x=16*Math.pow(Math.sin(t),3)*k,y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*k-1*k;i?p.lineTo(x,y):p.moveTo(x,y)}}
+  else if(tip===3){p.rect(-r*.85,-r*.85,r*1.7,r*1.7)}
+  else if(tip===4){p.moveTo(0,-r*1.1);p.lineTo(r,r*.75);p.lineTo(-r,r*.75)}
+  else if(tip===5){const a=r*.38,b=r*1.05;p.moveTo(-a,-b);p.lineTo(a,-b);p.lineTo(a,-a);p.lineTo(b,-a);p.lineTo(b,a);p.lineTo(a,a);p.lineTo(a,b);p.lineTo(-a,b);p.lineTo(-a,a);p.lineTo(-b,a);p.lineTo(-b,-a);p.lineTo(-a,-a)}
+  else if(tip===6){p.moveTo(0,-r*1.1);p.lineTo(r*.8,0);p.lineTo(0,r*1.1);p.lineTo(-r*.8,0)}
+  else p.ellipse(0,0,r,r*.9,0,0,Math.PI*2);
+  p.closePath();return p;
+}
+const TIPS=['圆','星','心','方','三角','十字','菱形'];
+// depth 0 white (shallow dent), 1 grey, 2 black (punched right through)
+const HOLE_COL=[['#fbf3e2','#d8b887'],['#6f6a63','#a48b68'],['#050302','#3b2208']];
+function hole(x,y,r,tip=0,depth=2){
+  ctx.save();ctx.translate(x,y);const pth=tipPath(tip,r);
+  const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.2,0,0,r*1.1);const hc=HOLE_COL[depth]||HOLE_COL[2];
+  g.addColorStop(0,hc[0]);g.addColorStop(1,hc[1]);
+  ctx.fillStyle=g;ctx.fill(pth);
+  ctx.translate(r*.08,r*.1);ctx.strokeStyle='rgba(255,236,190,.45)';ctx.lineWidth=Math.max(.9,r*.08);ctx.stroke(pth);
+  ctx.restore();
+}
+function drawTray(){
+  ctx.fillStyle='#1d2333';ctx.fillRect(0,0,W,H);
+  // factory floor plate texture
+  ctx.fillStyle='rgba(255,255,255,.035)';
+  const sc=viewScale(),gap=Math.max(14,22*S.zoom*0.6);
+  const ox=(-S.cam.x*sc)%gap,oy=(-S.cam.y*sc)%gap;
+  for(let x=ox;x<W;x+=gap)for(let y=oy;y<H;y+=gap){ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill()}
+}
+// ---------- conveyor belt (world space) ----------
+const BELT_SPAN=540,BELT_H=280;
+function drawBelt(sc){
+  const half=W/2/sc+40,x0=S.cam.x-half,x1=S.cam.x+half,hb=BELT_H/2;
+  // belt rubber
+  ctx.fillStyle=look.belt;ctx.fillRect(x0,-hb,x1-x0,BELT_H);
+  // slats move with the belt
+  const step=34,off=((S.beltPos%step)+step)%step;
+  for(let x=Math.floor(x0/step)*step+off-step;x<x1;x+=step){
+    ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x,-hb,3,BELT_H);
+    ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(x+3,-hb,2,BELT_H);
+  }
+  // shading towards the edges
+  const g=ctx.createLinearGradient(0,-hb,0,hb);g.addColorStop(0,'rgba(0,0,0,.35)');g.addColorStop(.12,'rgba(0,0,0,0)');g.addColorStop(.88,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.35)');
+  ctx.fillStyle=g;ctx.fillRect(x0,-hb,x1-x0,BELT_H);
+  // steel side rails with rollers and hazard stripes
+  for(const side of [-1,1]){
+    const y=side<0?-hb-22:hb;
+    ctx.fillStyle='#8c97ad';ctx.fillRect(x0,y,x1-x0,22);
+    ctx.fillStyle='#5d6880';ctx.fillRect(x0,side<0?y+18:y,x1-x0,4);
+    const rs=60,roff=((S.beltPos%rs)+rs)%rs;
+    for(let x=Math.floor(x0/rs)*rs+roff-rs;x<x1;x+=rs){
+      ctx.fillStyle='#4a5468';ctx.beginPath();ctx.arc(x,y+11,6.5,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#c3cbdb';ctx.lineWidth=1.5;const a=S.beltPos/6.5;ctx.beginPath();ctx.moveTo(x-Math.cos(a)*5,y+11-Math.sin(a)*5);ctx.lineTo(x+Math.cos(a)*5,y+11+Math.sin(a)*5);ctx.stroke();
+    }
+    const hy=side<0?y-14:y+22;
+    ctx.save();ctx.beginPath();ctx.rect(x0,hy,x1-x0,14);ctx.clip();
+    ctx.fillStyle='#ffc61a';ctx.fillRect(x0,hy,x1-x0,14);ctx.fillStyle='#1d2333';
+    for(let x=Math.floor(x0/28)*28;x<x1+28;x+=28){ctx.beginPath();ctx.moveTo(x,hy);ctx.lineTo(x+14,hy);ctx.lineTo(x,hy+14);ctx.lineTo(x-14,hy+14);ctx.closePath();ctx.fill()}
+    ctx.restore();
+  }
+}
+function drawCracker(cr,br,ox){
+  ctx.save();ctx.translate(ox,0);
+  // cracker halves drift apart when broken
+  for(let half=0;half<(br>0?2:1);half++){
+    ctx.save();
+    if(br>0){const d=(half?1:-1)*(br-1>0?(br-1)*40:0);ctx.translate(d,Math.abs(d)*.3);ctx.rotate((half?1:-1)*Math.max(0,br-1)*.15);
+      ctx.beginPath();if(half)ctx.rect(2,-300,400,600);else ctx.rect(-402,-300,400,600);ctx.clip()}
+    // shadow
+    const sp=cr.shape.path;
+    ctx.save();ctx.translate(6,9);ctx.fillStyle='rgba(0,0,0,.35)';ctx.fill(sp);ctx.restore();
+    const g=ctx.createLinearGradient(-cr.shape.w/2,-cr.shape.h/2,cr.shape.w/2,cr.shape.h/2);const kc=cr.kind==='gold'?['#fff1a8','#f2c230','#b8860b']:cr.kind==='jade'?['#c9f5dc','#5fc79a','#21795a']:['#f0cf8d','#e7bd72','#d9a75a'];g.addColorStop(0,kc[0]);g.addColorStop(.5,kc[1]);g.addColorStop(1,kc[2]);
+    ctx.fillStyle=g;ctx.fill(sp);
+    ctx.strokeStyle='#b9833c';ctx.lineWidth=1.5;ctx.stroke(sp);
+    // inner border bake line
+    ctx.save();ctx.scale(.9,.88);ctx.strokeStyle='rgba(150,95,30,.25)';ctx.lineWidth=2;ctx.stroke(sp);ctx.restore();
+    for(const s of cr.specks){ctx.fillStyle=s.d>.5?'rgba(170,110,40,.35)':'rgba(255,240,200,.35)';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill()}
+    for(const s of cr.salt){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.a);ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(-s.r/2,-s.r/2,s.r,s.r);ctx.restore()}
+    // cracks sit under the holes and never leave the cracker
+    if(cr.cracks.length){ctx.save();ctx.clip(sp);ctx.lineJoin='round';ctx.lineCap='round';
+      for(const [w,col,o] of [[2.4,'rgba(80,40,5,.85)',0],[1,'rgba(255,236,190,.35)',1]]){ctx.strokeStyle=col;ctx.lineWidth=w;
+        for(const c of cr.cracks){if(c.length<2)continue;ctx.beginPath();c.forEach((p,i)=>i?ctx.lineTo(p[0]+o,p[1]+o):ctx.moveTo(p[0]+o,p[1]+o));ctx.stroke()}}
+      ctx.restore()}
+    // targets
+    for(const t of cr.targets){
+      if(t.done){
+        hole(t.hx??t.x,t.hy??t.y,t.pr||cr.hr,t.tip||0,t.depth??2)}
+      else{
+        if(t.need!=null){ // tint the ring with the strength it asks for
+          ctx.save();ctx.translate(t.x,t.y);ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.45)','rgba(10,6,3,.45)'][t.need];ctx.fill(tipPath(t.needTip??0,cr.hr));ctx.restore();
+          ctx.fillStyle=['#7a5a2a','#f3ead6','#ffc61a'][t.need];ctx.font=`800 ${Math.round(cr.hr*.9)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(DEPTH[t.need],t.x,t.y+1);
+        }
+        ctx.save();ctx.translate(t.x,t.y);ctx.setLineDash([5,4]);ctx.strokeStyle=t.needTip!=null?'rgba(60,30,5,.85)':'rgba(90,50,10,.55)';ctx.lineWidth=t.needTip!=null?2:1.6;ctx.stroke(tipPath(t.needTip??0,cr.hr));ctx.setLineDash([]);ctx.restore();
+        if(t.need==null){ctx.fillStyle='rgba(90,50,10,.4)';ctx.beginPath();ctx.arc(t.x,t.y,1.4,0,Math.PI*2);ctx.fill()}}
+    }
+    for(const m of cr.misses)hole(m.x,m.y,m.r||cr.hr,m.tip||0,m.d??2);
+    for(const f of cr.free)hole(f.x,f.y,f.r||cr.hr,f.t,f.d??2);
+    if(cr.tpl){ctx.save();ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2.2;ctx.lineCap='round';ctx.lineJoin='round';
+      for(const L of cr.tpl){ctx.beginPath();L.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke()}ctx.restore()}
+    if(cr.strokes){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+      for(const [w,col,ox,oy] of [[6,'#5a3410',0,0],[3,'#2b1606',0,0],[1.3,'rgba(255,236,190,.55)',.9,1.3]]){
+        ctx.strokeStyle=col;ctx.lineWidth=w;
+        for(const st of cr.strokes){if(st.length<2)continue;ctx.beginPath();st.forEach((q,i)=>i?ctx.lineTo(q[0]+ox,q[1]+oy):ctx.moveTo(q[0]+ox,q[1]+oy));ctx.stroke()}}
+      ctx.restore()}
+    for(const f of cr.flash){if(f.life<=0)continue;
+      ctx.strokeStyle=f.perfect?`rgba(120,240,255,${Math.min(1,f.life)})`:`rgba(255,198,26,${Math.min(1,f.life)})`;ctx.lineWidth=f.perfect?6:4;ctx.lineCap='round';ctx.beginPath();
+      f.L.ids.map(i=>cr.targets[i]).sort((a,b)=>a.x-b.x||a.y-b.y).forEach((t,i)=>{const x=t.hx??t.x,y=t.hy??t.y;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()}
+    if(cr.kind!=='plain'&&cr.revealed){ // glints on a precious cracker
+      for(let i=0;i<5;i++){const a=S.t*1.3+i*1.7,x=Math.cos(a*1.1+i)*cr.shape.w*.32,y=Math.sin(a*.8+i*2)*cr.shape.h*.3,k=(Math.sin(S.t*4+i)+1)/2;
+        ctx.fillStyle=`rgba(255,255,255,${.25+k*.6})`;ctx.beginPath();ctx.moveTo(x,y-6*k-2);ctx.lineTo(x+1.5,y);ctx.lineTo(x,y+6*k+2);ctx.lineTo(x-1.5,y);ctx.fill();ctx.beginPath();ctx.moveTo(x-6*k-2,y);ctx.lineTo(x,y+1.5);ctx.lineTo(x+6*k+2,y);ctx.lineTo(x,y-1.5);ctx.fill()}}
+    if(cr.dust){ctx.save();ctx.clip(sp);
+      for(const b of cr.dust){if(b.a<=.02)continue;const gd=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r);
+        gd.addColorStop(0,`rgba(128,124,118,${b.a})`);gd.addColorStop(.65,`rgba(140,135,128,${b.a*.9})`);gd.addColorStop(1,'rgba(140,135,128,0)');
+        ctx.fillStyle=gd;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle=`rgba(90,86,80,${b.a*.8})`;for(let i=0;i<5;i++){const a=b.seed+i*2.4,rr=(b.seed*7+i*13)%b.r*.7;ctx.fillRect(b.x+Math.cos(a)*rr,b.y+Math.sin(a)*rr,1.6,1.6)}}
+      ctx.restore()}
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawTray();
+  const sc=viewScale();
+  const sh=S.shake*6;
+  ctx.save();
+  ctx.translate(W/2+(Math.random()-.5)*sh,H/2+10+(Math.random()-.5)*sh);
+  ctx.scale(sc,sc);ctx.translate(-S.cam.x,-S.cam.y);
+  drawBelt(sc);
+  if(S.trans){const d=S.trans.e*BELT_SPAN;drawCracker(S.trans.old,S.trans.oldBr,d);drawCracker(S.trans.next,0,d-BELT_SPAN)}
+  else drawCracker(S.cracker,S.breakAnim,0);
+  // needle: yellow ring (from the sketch) + syringe coming from the right
+  const n=S.needle,p=S.plunge;
+  const curR=(S.trans?S.trans.next:S.cracker).hr*S.ns,ringR=curR*(1-p*.25);
+  ctx.save();ctx.translate(n.x,n.y);if(S.wiggle>0)ctx.rotate(Math.sin(S.t*60)*S.wiggle*.25);ctx.scale(1/S.zoom,1/S.zoom); // syringe and ring stay the same size on screen
+  // shadow of syringe
+  const lift=26*(1-p)+4;
+  ctx.save();ctx.translate(lift*.6,lift*.8);ctx.rotate(-0.55);ctx.fillStyle='rgba(0,0,0,.28)';roundRect(14,-9,150,18,6);ctx.fill();ctx.restore();
+  // syringe body (seen from above, angled)
+  ctx.save();ctx.translate(lift*.15,-lift*.2);ctx.rotate(-0.55);
+  ctx.strokeStyle='#cfd6e6';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(34,0);ctx.stroke(); // needle
+  ctx.fillStyle='#8ea0c6';roundRect(34,-5,12,10,2);ctx.fill(); // hub
+  ctx.fillStyle='rgba(200,225,255,.55)';roundRect(46,-12,96,24,6);ctx.fill();
+  ctx.strokeStyle='#eaf2ff';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle=look.fluid;roundRect(48,-9,60-p*20,18,4);ctx.fill(); // thunder fluid
+  ctx.strokeStyle='rgba(30,35,51,.7)';ctx.lineWidth=1;for(let i=0;i<6;i++){ctx.beginPath();ctx.moveTo(56+i*14,-12);ctx.lineTo(56+i*14,-5);ctx.stroke()}
+  ctx.fillStyle='#ff5a5f';roundRect(142,-15,8,30,3);ctx.fill(); // flange
+  const pull=S.charging?Math.min(1,S.charge/CHARGE_T[1])*22:0;ctx.fillStyle='#cfd6e6';ctx.fillRect(150-p*24+pull,-3,40,6);roundRect(188-p*24+pull,-12,8,24,3);ctx.fill(); // plunger
+  // bolt glyph on barrel
+  ctx.fillStyle='#2a1f00';ctx.beginPath();ctx.moveTo(80,-7);ctx.lineTo(72,1);ctx.lineTo(78,1);ctx.lineTo(74,8);ctx.lineTo(84,-1);ctx.lineTo(78,-1);ctx.closePath();ctx.fill();
+  ctx.restore();
+  // ring
+  ctx.strokeStyle='#ffc61a';ctx.lineWidth=3.2;ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);ctx.stroke();
+  if(S.charging){const d=depthOf(S.charge),k=Math.min(1,S.charge/CHARGE_T[1]*1.05);
+    ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.6)','rgba(0,0,0,.7)'][d];ctx.beginPath();ctx.arc(0,0,ringR*.92,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=['#fffaf0','#b7b0a6','#ff5a5f'][d];ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,ringR+5,-Math.PI/2,-Math.PI/2+k*Math.PI*2);ctx.stroke()}
+  if(S.tip){ctx.strokeStyle='rgba(255,198,26,.8)';ctx.lineWidth=1.2;ctx.stroke(tipPath(S.tip,curR*.8))}else{ctx.fillStyle='#ffc61a';ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);ctx.fill()}
+  // lightning
+  for(const b of S.bolts){
+    ctx.strokeStyle=`rgba(255,226,90,${b.life})`;ctx.lineWidth=2;ctx.beginPath();
+    let r=ringR+2;ctx.moveTo(Math.cos(b.a)*r,Math.sin(b.a)*r);
+    for(let i=1;i<=4;i++){r=ringR+2+b.len*i/4*(1.2-b.life*.4);const j=(Math.random()-.5)*.5;ctx.lineTo(Math.cos(b.a+j)*r,Math.sin(b.a+j)*r)}
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.restore();
+  // flash
+  if(p>.7&&!reduce){ctx.fillStyle=`rgba(255,226,90,${(p-.7)*.25})`;ctx.fillRect(0,0,W,H)}
+}
+
+
+// ---------- engrave mode: carve along a dashed template ----------
+function resample(L,step){const out=[L[0]];let acc=0;
+  for(let i=1;i<L.length;i++){let [ax,ay]=L[i-1];const [bx,by]=L[i];let d=Math.hypot(bx-ax,by-ay);
+    while(acc+d>=step){const t=(step-acc)/d;ax+=(bx-ax)*t;ay+=(by-ay)*t;out.push([ax,ay]);d=Math.hypot(bx-ax,by-ay);acc=0}acc+=d}
+  out.push(L[L.length-1]);return out}
+const circ=(cx,cy,r,a0=0,a1=Math.PI*2,n=48)=>Array.from({length:n+1},(_,i)=>{const a=a0+(a1-a0)*i/n;return [cx+Math.cos(a)*r,cy+Math.sin(a)*r]});
+const TEMPLATES=[
+  {name:'圆圈',lines:[circ(0,0,62)]},
+  {name:'爱心',lines:[Array.from({length:81},(_,i)=>{const t=i/80*Math.PI*2;return [16*Math.pow(Math.sin(t),3)*4.4,-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))*4.4-6]})]},
+  {name:'五角星',lines:[Array.from({length:11},(_,i)=>{const a=-Math.PI/2+i*Math.PI/5,r=i%2?28:70;return [Math.cos(a)*r,Math.sin(a)*r+6]})]},
+  {name:'笑脸',lines:[circ(0,0,64),circ(-22,-18,7,0,Math.PI*2,16),circ(22,-18,7,0,Math.PI*2,16),circ(0,2,36,Math.PI*.2,Math.PI*.8,20)]},
+  {name:'闪电',lines:[[[18,-70],[-22,-4],[6,-4],[-16,70],[30,-14],[2,-14],[24,-70],[18,-70]]]},
+  {name:'小房子',lines:[[[-50,-6],[0,-56],[50,-6]],[[-38,-14],[-38,52],[38,52],[38,-14]],[[-12,52],[-12,20],[12,20],[12,52]]]},
+  {name:'波浪',lines:[Array.from({length:61},(_,i)=>{const x=-110+i*220/60;return [x,Math.sin(x/22)*26]})]},
+  {name:'自由刻',lines:null},
+];
+function engraveBlank(shapeIdx,tplIdx){
+  const c=blank(shapeIdx);c.strokes=[];const T=TEMPLATES[tplIdx];c.tplName=T.name;
+  if(T.lines){let k=Math.min(c.shape.w,c.shape.h)/180;
+    // shrink until the whole pattern fits on this cracker
+    for(let i=0;i<12&&!T.lines.every(L=>L.every(([x,y])=>inside(c.shape,x*k,y*k,8)));i++)k*=.9;
+    c.tpl=T.lines.map(L=>resample(L.map(([x,y])=>[x*k,y*k]),3))}
+  else c.tpl=null;
+  return c;
+}
+// coverage: share of the template that has a groove nearby; accuracy: share of the groove that sits on the template
+function engraveScore(cr){
+  const tol=7;const tp=cr.tpl.flat(),cp=cr.strokes.flat();
+  if(!cp.length)return {score:0,cover:0,acc:0};
+  const near=(p,arr)=>{for(const q of arr)if(Math.abs(q[0]-p[0])<=tol&&Math.abs(q[1]-p[1])<=tol&&Math.hypot(q[0]-p[0],q[1]-p[1])<=tol)return true;return false};
+  const cover=tp.filter(p=>near(p,cp)).length/tp.length;
+  const step=Math.max(1,Math.floor(cp.length/400));let on=0,tot=0;for(let i=0;i<cp.length;i+=step){tot++;if(near(cp[i],tp))on++}
+  const acc=on/tot;return {score:Math.round(cover*100*(.4+.6*acc)),cover,acc};
+}
+$('tTpl').addEventListener('click',()=>{if(S.trans)return;closePanel();S.tplIdx=(S.tplIdx+1)%TEMPLATES.length;startTrans(engraveBlank(S.cracker.shapeIdx,S.tplIdx),0)});
+$('tDone').addEventListener('click',()=>{if(S.trans)return;closePanel();const cr=S.cracker;
+  if(!cr.tpl){toast('自由刻没有打分，点「送走」换下一块');return}
+  const r=engraveScore(cr);S.engraveBest=Math.max(S.engraveBest||0,r.score);
+  const rk=r.score>0?addRecord('engrave',{name:playerName(),score:r.score,sub:cr.tplName}):0;
+  if(r.score>0){S.lastOnlineScore=r.score;postOnline('engrave',{name:playerName(),score:r.score,sub:cr.tplName},n=>{if(n>0)setTimeout(()=>toast('刻印全网第 '+n+' 名',1500),2300)})}
+  const grade=r.score>=90?'大师级!':r.score>=75?'刻得漂亮!':r.score>=50?'还不错':'再练练';
+  toast(cr.tplName+' '+r.score+'分 · '+grade+'（描到 '+Math.round(r.cover*100)+'%，准确 '+Math.round(r.acc*100)+'%）'+(rk?' · 排行榜第 '+rk+' 名':''),2200);
+  buzz(r.score>=75?[60,40,60,40,120]:[60]);sfx(r.score>=75?'clear':'hit');
+  setTimeout(()=>{if(S.mode==='engrave'&&!S.trans){S.tplIdx=(S.tplIdx+1)%(TEMPLATES.length-1);startTrans(engraveBlank(S.cracker.shapeIdx,S.tplIdx),0)}},1800);
+});
+
+// ---------- creative mode ----------
+function blank(idx){const c=newCracker(1,idx);c.targets=[];c.lines=[];c.free=[];c.dust=null;c.kind='plain';return c}
+function loadTip(){try{return Math.min(TIPS.length-1,+localStorage.getItem('sodaTip')||0)}catch(e){return 0}}
+function cycleTip(){S.tip=(S.tip+1)%TIPS.length;try{localStorage.setItem('sodaTip',S.tip)}catch(e){};hud();toast('针头：'+TIPS[S.tip])}
+$('tTip').addEventListener('click',cycleTip);
+function vibeLabel(){$('vibeBtn').textContent='震动：'+(vibeOn?'开':'关')+'（点击切换）'}vibeLabel();
+$('vibeBtn').addEventListener('click',()=>{vibeOn=!vibeOn;try{localStorage.setItem('sodaVibe',vibeOn?'1':'0')}catch(e){};vibeLabel();buzz([60])});$('tipBtn').addEventListener('click',cycleTip);
+$('tMenu').addEventListener('click',()=>{const p=$('toolPanel');p.hidden=!p.hidden;$('tMenu').setAttribute('aria-expanded',String(!p.hidden));$('tMenu').textContent=p.hidden?'创作工具 ▾':'收起 ▴'});
+function closePanel(){$('toolPanel').hidden=true;$('tMenu').textContent='创作工具 ▾'}
+$('tShape').addEventListener('click',()=>{if(S.trans)return;closePanel();const ni=(S.cracker.shapeIdx+1)%SHAPES.length;startTrans(S.mode==='engrave'?engraveBlank(ni,S.tplIdx):blank(ni),0)});
+$('tSend').addEventListener('click',()=>{if(S.trans)return;closePanel();startTrans(S.mode==='engrave'?engraveBlank(S.cracker.shapeIdx,S.tplIdx):blank(S.cracker.shapeIdx),0)});
+$('tUndo').addEventListener('click',()=>{if(S.mode==='engrave')S.cracker.strokes.pop();else S.cracker.free.pop();hud()});
+$('tClear').addEventListener('click',()=>{S.cracker.free=[];if(S.cracker.strokes)S.cracker.strokes=[];hud();toast('已清空')});
+$('tSave').addEventListener('click',()=>{closePanel();
+  const cr=S.cracker;
+  if(S.mode==='engrave')openShare(cr.tpl?engraveScore(cr).score+'%':'自由刻','刻印 · '+(cr.tplName||'')+' · '+cr.shape.name);
+  else openShare(cr.free.length+' 个孔','创作 · '+cr.shape.name);
+});
+$('tDraw').addEventListener('click',()=>{closePanel();openPad()});
+$('menuChip').addEventListener('click',()=>{if(!S.running)return;if(S.shop){$('count').hidden=true;nightEnd();toast('提前收工');return}S.running=false;cv.style.filter='';$('count').hidden=true;hud();$('tools').hidden=true;$('toolPanel').hidden=true;$('tiltOv').hidden=true;$('startOv').hidden=false});
+
+// ---------- custom cracker shapes (drawn with a finger in the editor only) ----------
+function makeCustomShape(name,pts){
+  const p=new Path2D();const n=pts.length;
+  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  let m=mid(pts[n-1],pts[0]);p.moveTo(m[0],m[1]);
+  for(let i=0;i<n;i++){const c=pts[i],d=mid(c,pts[(i+1)%n]);p.quadraticCurveTo(c[0],c[1],d[0],d[1])}
+  p.closePath();
+  let w=0,h=0;for(const q of pts){w=Math.max(w,Math.abs(q[0])*2);h=Math.max(h,Math.abs(q[1])*2)}
+  return {name,w:Math.max(w,60),h:Math.max(h,60),path:p,pts,custom:true};
+}
+function loadCustom(){try{return JSON.parse(localStorage.getItem('sodaShapes')||'[]')}catch(e){return []}}
+function saveCustom(){try{localStorage.setItem('sodaShapes',JSON.stringify(SHAPES.slice(BUILTIN).map(s=>({name:s.name,pts:s.pts}))))}catch(e){}}
+for(const c of loadCustom())if(c&&Array.isArray(c.pts)&&c.pts.length>=6)SHAPES.push(makeCustomShape(String(c.name).slice(0,8),c.pts));
+
+const pad=$('pad'),pctx=pad.getContext('2d');let stroke=[],padDown=false;
+function sizePad(){const r=pad.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);pad.width=r.width*d;pad.height=r.height*d;pctx.setTransform(d,0,0,d,0,0);drawPad()}
+function drawPad(){
+  const r=pad.getBoundingClientRect();pctx.clearRect(0,0,r.width,r.height);
+  if(stroke.length<2){pctx.fillStyle='#9aa3bd';pctx.font='14px sans-serif';pctx.textAlign='center';pctx.fillText('在这里画',r.width/2,r.height/2);return}
+  pctx.beginPath();stroke.forEach((q,i)=>i?pctx.lineTo(q[0],q[1]):pctx.moveTo(q[0],q[1]));
+  if(!padDown){pctx.closePath();pctx.fillStyle='#e7bd72';pctx.fill()}
+  pctx.strokeStyle='#ffc61a';pctx.lineWidth=3;pctx.lineJoin='round';pctx.stroke();
+}
+function openPad(){stroke=[];$('shapeName').value='';$('drawOv').hidden=false;requestAnimationFrame(sizePad)}
+pad.addEventListener('pointerdown',e=>{padDown=true;stroke=[];pad.setPointerCapture(e.pointerId);const r=pad.getBoundingClientRect();stroke.push([e.clientX-r.left,e.clientY-r.top]);drawPad()});
+pad.addEventListener('pointermove',e=>{if(!padDown)return;const r=pad.getBoundingClientRect(),q=[e.clientX-r.left,e.clientY-r.top],l=stroke[stroke.length-1];if(Math.hypot(q[0]-l[0],q[1]-l[1])>3){stroke.push(q);drawPad()}});
+['pointerup','pointercancel'].forEach(t=>pad.addEventListener(t,()=>{padDown=false;drawPad()}));
+$('padClear').addEventListener('click',()=>{stroke=[];drawPad()});
+$('padCancel').addEventListener('click',()=>{$('drawOv').hidden=true});
+$('padSave').addEventListener('click',()=>{
+  if(stroke.length<12){toast('再画大一点、画完整');return}
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const q of stroke){x0=Math.min(x0,q[0]);y0=Math.min(y0,q[1]);x1=Math.max(x1,q[0]);y1=Math.max(y1,q[1])}
+  const bw=x1-x0,bh=y1-y0;if(bw<40||bh<40){toast('画得太小了');return}
+  const k=Math.min(300/bw,220/bh),cx=(x0+x1)/2,cy=(y0+y1)/2;
+  let pts=stroke.map(q=>[Math.round((q[0]-cx)*k),Math.round((q[1]-cy)*k)]);
+  const out=[pts[0]];for(const q of pts){const l=out[out.length-1];if(Math.hypot(q[0]-l[0],q[1]-l[1])>=7)out.push(q)}
+  while(out.length>120)for(let i=out.length-2;i>0&&out.length>120;i-=2)out.splice(i,1);
+  if(out.length<6){toast('再画大一点、画完整');return}
+  const name=($('shapeName').value.trim()||('自定义'+(SHAPES.length-BUILTIN+1))).slice(0,8);
+  SHAPES.push(makeCustomShape(name,out));saveCustom();$('drawOv').hidden=true;hud();
+  if(S.running&&S.mode==='create'&&!S.trans)startTrans(blank(SHAPES.length-1),0);
+  toast('已保存形状：'+name);
+});
+
+// ---------- export / import a creation as a code ----------
+const b64e=str=>btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64d=str=>decodeURIComponent(escape(atob(str.replace(/-/g,'+').replace(/_/g,'/'))));
+function exportCode(cr){
+  const d={v:1,n:cr.shape.name,h:cr.free.map(f=>[Math.round(f.x),Math.round(f.y),f.t,Math.round(f.r||cr.hr),f.d??2])};
+  if(cr.shape.custom)d.p=cr.shape.pts;else d.k=cr.shapeIdx;
+  return 'SODA1:'+b64e(JSON.stringify(d));
+}
+function importCode(code){
+  const m=/SODA1:([A-Za-z0-9_-]+)/.exec(code.trim());if(!m)throw new Error('bad');
+  const d=JSON.parse(b64d(m[1]));let shape,idx;
+  if(Array.isArray(d.p)&&d.p.length>=6){shape=makeCustomShape(String(d.n||'朋友的饼干').slice(0,8),d.p.slice(0,200).map(q=>[+q[0]||0,+q[1]||0]))}
+  else{idx=Math.max(0,Math.min(BUILTIN-1,d.k|0))}
+  let cr;
+  if(shape){SHAPES.push(shape);cr=blank(SHAPES.length-1);SHAPES.pop();cr.shape=shape;cr.shapeIdx=0}
+  else cr=blank(idx);
+  cr.free=(Array.isArray(d.h)?d.h:[]).slice(0,2000).map(q=>({x:+q[0]||0,y:+q[1]||0,t:Math.max(0,Math.min(TIPS.length-1,q[2]|0)),r:Math.max(3,Math.min(80,+q[3]||cr.hr)),d:q[4]==null?2:Math.max(0,Math.min(2,q[4]|0))}));
+  return cr;
+}
+let codeMode='export';
+$('tExport').addEventListener('click',()=>{closePanel();codeMode='export';
+  $('codeTitle').textContent='导出代码';$('codeMsg').textContent='这块饼干上的 '+S.cracker.free.length+' 个孔（含形状和针头）都在这串代码里。发给朋友，他在创作模式点「导入代码」就能看到。';
+  $('codeText').value=exportCode(S.cracker);$('codeText').readOnly=true;$('codeAct').textContent='复制';$('codeOv').hidden=false});
+$('tImport').addEventListener('click',()=>{closePanel();codeMode='import';
+  $('codeTitle').textContent='导入代码';$('codeMsg').textContent='把朋友发来的 SODA1: 开头的代码粘贴到下面。';
+  $('codeText').value='';$('codeText').readOnly=false;$('codeAct').textContent='载入';$('codeOv').hidden=false;$('codeText').focus()});
+$('codeClose').addEventListener('click',()=>{$('codeOv').hidden=true});
+$('codeAct').addEventListener('click',async()=>{
+  const ta=$('codeText');
+  if(codeMode==='export'){
+    try{await navigator.clipboard.writeText(ta.value);toast('已复制')}catch(e){ta.focus();ta.select();toast('已选中，请手动复制')}
+  }else{
+    try{const cr=importCode(ta.value);$('codeOv').hidden=true;startTrans(cr,0);toast('载入成功')}
+    catch(e){$('codeMsg').textContent='这串代码读不出来。请确认完整复制了 SODA1: 开头的整段。'}
+  }
+});
+// ---------- online leaderboard (Supabase REST) ----------
+// Fill these two in from Supabase: Project Settings → API. The publishable/anon key is meant to be public.
+const ONLINE={url:'',key:''};
+const onlineOn=()=>!!(ONLINE.url&&ONLINE.key);
+const supaHeaders=()=>({apikey:ONLINE.key,Authorization:'Bearer '+ONLINE.key,'Content-Type':'application/json'});
+async function submitOnline(board,rec){
+  const body={board,name:rec.name,score:Math.round(rec.score),sub:(rec.sub||'').slice(0,30)};
+  const r=await fetch(ONLINE.url+'/rest/v1/scores',{method:'POST',headers:{...supaHeaders(),Prefer:'return=minimal'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('post '+r.status);
+  // rank = how many scores on this board are higher, plus one
+  const c=await fetch(ONLINE.url+`/rest/v1/scores?select=id&board=eq.${board}&score=gt.${body.score}`,{method:'HEAD',headers:{...supaHeaders(),Prefer:'count=exact'}});
+  const m=/\/(\d+)/.exec(c.headers.get('content-range')||'');return m?+m[1]+1:0;
+}
+async function fetchOnline(board){
+  const r=await fetch(ONLINE.url+`/rest/v1/scores?select=name,score,sub,created_at&board=eq.${board}&order=score.desc,created_at.asc&limit=20`,{headers:supaHeaders()});
+  if(!r.ok)throw new Error('get '+r.status);return r.json();
+}
+function postOnline(board,rec,onRank){
+  if(!onlineOn())return;
+  submitOnline(board,rec).then(rk=>{if(rk)onRank(rk)}).catch(()=>onRank(-1));
+}
+
+// ---------- leaderboard (kept on this phone) ----------
+const BOARD_NAMES={g60:'闯关 60 秒',g90:'闯关 90 秒',g120:'闯关 120 秒',g0:'闯关不限时',engrave:'刻印'};
+const boardLabel=k=>BOARD_NAMES[k]||k;
+function loadBoard(){try{return JSON.parse(localStorage.getItem('sodaBoard')||'{}')}catch(e){return {}}}
+function playerName(){return ($('playerName').value.trim()||'无名针客').slice(0,10)}
+try{$('playerName').value=localStorage.getItem('sodaName')||''}catch(e){}
+$('playerName').addEventListener('change',()=>{try{localStorage.setItem('sodaName',$('playerName').value.trim())}catch(e){}});
+let lastAdded=null;
+function addRecord(key,rec){
+  const b=loadBoard(),list=b[key]||[];rec.date=new Date().toLocaleDateString('zh-CN');rec.id=Date.now();
+  list.push(rec);list.sort((a,c)=>c.score-a.score);b[key]=list.slice(0,10);
+  try{localStorage.setItem('sodaBoard',JSON.stringify(b))}catch(e){}
+  const i=b[key].findIndex(x=>x.id===rec.id);if(i>=0)lastAdded=rec.id;return i>=0?i+1:0;
+}
+let boardScope=onlineOn()?'online':'local',boardKey='g60',boardReq=0;
+function boardRow(ol,key,name,score,sub,me){const li=document.createElement('li');if(me)li.className='me';
+  const nm=document.createElement('span');nm.textContent=name;const sm=document.createElement('small');sm.textContent=sub;nm.appendChild(sm);
+  const sc=document.createElement('b');sc.textContent=key==='engrave'?score+'%':score;li.append(nm,sc);ol.appendChild(li)}
+function boardMsg(ol,t){const li=document.createElement('li');li.className='empty';li.textContent=t;ol.appendChild(li)}
+function renderBoard(key){
+  key=key||boardKey;boardKey=key;
+  $('boardSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===key)));
+  $('scopeSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s===boardScope)));
+  if(boardScope==='online'){
+    const ol=$('boardList');ol.textContent='';$('boardNote').textContent='所有玩家的成绩，前 20 名。';
+    if(!onlineOn()){boardMsg(ol,'全网排行榜还没接上，先看「本机」');return}
+    boardMsg(ol,'正在读取…');const my=++boardReq;
+    fetchOnline(key).then(list=>{if(my!==boardReq)return;ol.textContent='';
+      if(!list.length){boardMsg(ol,'还没有人上榜，快去抢第一');return}
+      for(const r of list)boardRow(ol,key,r.name,r.score,(r.sub||'')+' · '+new Date(r.created_at).toLocaleDateString('zh-CN'),r.name===playerName()&&r.score===S.lastOnlineScore);
+    }).catch(()=>{if(my!==boardReq)return;ol.textContent='';boardMsg(ol,'读取失败，检查一下网络再试')});
+    return;
+  }
+  $('boardNote').textContent='记录在这部手机上，前 10 名。';
+  const list=loadBoard()[key]||[],ol=$('boardList');ol.textContent='';
+  if(!list.length){boardMsg(ol,'还没有记录，去扎一盒吧');return}
+  for(const r of list)boardRow(ol,key,r.name,r.score,(r.sub||'')+' · '+r.date,r.id===lastAdded);
+}
+$('scopeSeg').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{boardScope=x.dataset.s;renderBoard()}));
+$('scopeSeg').hidden=!onlineOn(); // online board is off unless Supabase keys are filled in
+function openBoard(key){renderBoard(key||('g'+timeLimit));$('boardOv').hidden=false}
+$('boardSeg').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>renderBoard(x.dataset.k)));
+$('boardBtn').addEventListener('click',()=>openBoard());
+$('overBoardBtn').addEventListener('click',()=>openBoard(S.lastKey));
+$('boardClose').addEventListener('click',()=>{$('boardOv').hidden=true});
+$('overMenuBtn').addEventListener('click',()=>{$('overOv').hidden=true;hud();$('startOv').hidden=false});
+
+// ---------- share card: snapshot of the belt + the result, as an image ----------
+function makeShareCard(big,sub){
+  const Wc=1080,Hc=1350,c=document.createElement('canvas');c.width=Wc;c.height=Hc;const g=c.getContext('2d');
+  g.fillStyle='#1d2333';g.fillRect(0,0,Wc,Hc);
+  // hazard band
+  g.fillStyle='#ffc61a';g.fillRect(0,0,Wc,26);g.fillStyle='#1d2333';for(let x=-26;x<Wc;x+=52){g.beginPath();g.moveTo(x,0);g.lineTo(x+26,0);g.lineTo(x,26);g.lineTo(x-26,26);g.fill()}
+  const disp="'ZCOOL KuaiLe','PingFang SC','Microsoft YaHei',sans-serif",body="'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif";
+  g.textAlign='left';g.textBaseline='alphabetic';
+  g.fillStyle='#ffc61a';g.font=`88px ${disp}`;g.fillText('雷霆大针管',70,150);
+  g.fillStyle='#f3ead6';g.font=`40px ${disp}`;g.fillText('苏打饼干打孔',74,210);
+  // game snapshot, cropped to the middle of the screen
+  const sw=cv.width,sh=cv.height,crop=Math.min(sw,sh*1.25),cx=(sw-crop)/2,ch=crop*.8,cy=Math.max(0,(sh-ch)/2);
+  g.save();g.beginPath();g.roundRect?g.roundRect(70,260,940,752,28):g.rect(70,260,940,752);g.clip();
+  g.drawImage(cv,cx,cy,crop,ch,70,260,940,752);g.restore();
+  g.fillStyle='#ffc61a';g.font=`120px ${disp}`;g.fillText(big,70,1150);
+  g.fillStyle='#f3ead6';g.font=`36px ${body}`;g.fillText(sub,74,1210);
+  g.fillStyle='#9aa3bd';g.font=`30px ${body}`;g.fillText(playerName()+' · '+new Date().toLocaleDateString('zh-CN'),74,1262);
+  g.textAlign='right';g.fillText('晃手机来扎 → '+location.host,1010,1262);
+  return c;
+}
+let shareFile=null;
+function openShare(big,sub){
+  const c=makeShareCard(big,sub);const url=c.toDataURL('image/png');$('shareImg').src=url;shareFile=null;
+  try{c.toBlob(b=>{if(b)shareFile=new File([b],'雷霆大针管.png',{type:'image/png'})},'image/png')}catch(e){}
+  const can=!!(navigator.share&&navigator.canShare);$('shareGo').hidden=!can;
+  $('shareTip').textContent=can?'点「分享」发给朋友，或长按图片保存到相册':'长按图片保存到相册，或截屏发给朋友';
+  $('shareOv').hidden=false;
+}
+$('shareGo').addEventListener('click',async()=>{
+  if(!shareFile){toast('图片还在生成，再点一次');return}
+  const data={files:[shareFile],title:'雷霆大针管',text:'我在雷霆大针管里扎饼干，来比比？ '+location.href};
+  try{if(navigator.canShare(data))await navigator.share(data);else await navigator.share({title:data.title,text:data.text,url:location.href})}
+  catch(e){if(e&&e.name!=='AbortError')toast('分享没打开，可以长按图片保存')}
+});
+$('shareClose').addEventListener('click',()=>{$('shareOv').hidden=true});
+$('shareScoreBtn').addEventListener('click',()=>openShare(String(S.score)+' 分',boardLabel(S.lastKey)+' · 扎到第 '+S.level+' 块'+(S.lastOnlineRank?' · 全网第 '+S.lastOnlineRank+' 名':S.lastRank?' · 本机第 '+S.lastRank+' 名':'')));
+
+// ---------- blinking ----------
+function blink(){
+  if(!S||!S.running)return;S.eye=0;S._dryWarned=false;cv.style.filter='';
+  const l=$('lids');l.classList.add('shut');setTimeout(()=>l.classList.remove('shut'),140);
+}
+$('blinkBtn').addEventListener('pointerdown',e=>{e.preventDefault();blink()});
+$('blinkBtn').addEventListener('click',e=>{if(e.detail===0)blink()});
+function blinkLabel(){$('blinkToggle').textContent='眨眼挑战：'+(blinkOn?'开':'关')+'（不眨眼屏幕会抖、会花）'}blinkLabel();
+$('blinkToggle').addEventListener('click',()=>{blinkOn=!blinkOn;try{localStorage.setItem('sodaBlink',blinkOn?'1':'0')}catch(e){};blinkLabel()});
+
+// ---------- 饼干店: night shift on the belt, day shift at the counter ----------
+const UPS=[
+  {id:'lens',cat:'针管',name:'高倍放大镜',desc:'视角最大放大倍数 +1×',cost:[120,300]},
+  {id:'charge',cat:'针管',name:'快充活塞',desc:'蓄力快 25%，黑孔更容易按出来',cost:[90,220]},
+  {id:'steady',cat:'人体改造',name:'钢铁手腕',desc:'手抖减少 22%',cost:[80,180,360]},
+  {id:'eye',cat:'人体改造',name:'机械眼',desc:'眨眼挑战时眼睛干得慢 35%',cost:[100,250]},
+  {id:'owl',cat:'人体改造',name:'夜猫子基因',desc:'每晚多干 15 秒',cost:[60,140,300]},
+  {id:'belt',cat:'流水线',name:'高速皮带',desc:'换下一块饼干更快',cost:[70,180]},
+  {id:'bench',cat:'流水线',name:'加厚工作台',desc:'饼干多扛 1 次扎歪才裂',cost:[150,350]},
+  {id:'mold',cat:'流水线',name:'新模具',desc:'解锁下一种饼干形状，新形状卖得更贵',cost:[100,180,280,400]},
+  {id:'sign',cat:'店铺',name:'招牌',desc:'所有饼干售价 +20%',cost:[100,220,450]},
+  {id:'bell',cat:'店铺',name:'门铃',desc:'客人来得更勤、更有耐心',cost:[80,200]},
+  {id:'roo_slots',cat:'外卖',name:'多雇一只袋鼠',desc:'每天多 1 张外卖单',cost:[120,260]},
+  {id:'roo_fee',cat:'外卖',name:'加急服务',desc:'外卖价再 +25%',cost:[100,240]},
+];
+const LOOKS={
+  belt:[{id:'灰',c:'#2a2e37',cost:0},{id:'薄荷',c:'#1f4a42',cost:60},{id:'樱花',c:'#5a2f43',cost:60},{id:'黑金',c:'#16130c',cost:150}],
+  fluid:[{id:'雷电黄',c:'rgba(255,198,26,.85)',cost:0},{id:'冰蓝',c:'rgba(110,200,255,.85)',cost:50},{id:'毒绿',c:'rgba(120,230,90,.85)',cost:50},{id:'火红',c:'rgba(255,90,80,.85)',cost:50}],
+};
+const SHAPE_PRICE=[20,24,22,28,34,26];
+// daily books: revenue minus costs = profit
+const MATERIAL=5,RENT=15;
+const freshLedger=()=>({sales:0,salesN:0,custom:0,customN:0,delivery:0,deliveryN:0,made:0,broken:0,tossed:0,tossedValue:0,invest:0});
+const L=()=>(shop.led=shop.led||freshLedger());
+function freshShop(){return {day:1,phase:'night',custom:[],roo:{open:false,orders:[]},money:50,inv:[],up:{},owned:{belt:['灰'],fluid:['雷电黄']},look:{belt:'灰',fluid:'雷电黄'}}}
+let shop=(()=>{try{return Object.assign(freshShop(),JSON.parse(localStorage.getItem('sodaShop')||'{}'))}catch(e){return freshShop()}})();
+function saveShop(){try{localStorage.setItem('sodaShop',JSON.stringify(shop))}catch(e){}}
+const lv=id=>shop.up[id]||0;
+const look={get belt(){return (LOOKS.belt.find(x=>x.id===shop.look.belt)||LOOKS.belt[0]).c},get fluid(){return (LOOKS.fluid.find(x=>x.id===shop.look.fluid)||LOOKS.fluid[0]).c}};
+const unlockedShapes=()=>Math.min(BUILTIN,2+lv('mold'));
+
+function renderUps(el,cats){
+  el.textContent='';
+  for(const u of UPS.filter(u=>cats.includes(u.cat))){
+    const l=lv(u.id),max=u.cost.length,d=document.createElement('div');d.className='up';
+    const b=document.createElement('b');b.textContent=u.name;const lvT=document.createElement('span');lvT.className='lv';lvT.textContent=u.cat+' · 等级 '+l+' / '+max;
+    const sm=document.createElement('small');sm.textContent=u.desc;
+    const bt=document.createElement('button');bt.type='button';bt.className='btn';
+    if(l>=max){bt.textContent='已满级';bt.disabled=true}else{bt.textContent='升级 ¥'+u.cost[l];bt.disabled=shop.money<u.cost[l]}
+    bt.onclick=()=>{if(l>=max||shop.money<u.cost[l])return;shop.money-=u.cost[l];L().invest+=u.cost[l];shop.up[u.id]=l+1;saveShop();sfx('clear');buzz([40]);toast(u.name+' 升到 '+(l+1)+' 级');openPlace(curPlace)};
+    d.append(b,lvT,sm,bt);el.appendChild(d)}
+}
+function renderLooks(el){
+  el.textContent='';
+  for(const [key,label] of [['belt','皮带颜色'],['fluid','针管液体颜色']])for(const o of LOOKS[key]){
+    const own=shop.owned[key].includes(o.id),on=shop.look[key]===o.id;
+    const d=document.createElement('div');d.className='up';
+    const b=document.createElement('b');b.textContent=label+' · '+o.id;const sw=document.createElement('small');sw.textContent=own?(on?'正在使用':'已拥有'):('¥'+o.cost);
+    sw.style.cssText='display:flex;align-items:center;gap:6px';const dot=document.createElement('i');dot.style.cssText=`width:14px;height:14px;border-radius:50%;background:${o.c};display:inline-block`;sw.prepend(dot);
+    const bt=document.createElement('button');bt.type='button';bt.className='btn';bt.textContent=on?'使用中':own?'换上':'买 ¥'+o.cost;bt.disabled=on||(!own&&shop.money<o.cost);
+    bt.onclick=()=>{if(!own){shop.money-=o.cost;L().invest+=o.cost;shop.owned[key].push(o.id)}shop.look[key]=o.id;saveShop();openPlace(curPlace)};
+    d.append(b,sw,bt);el.appendChild(d)}
+}
+function sub(t){const p=document.createElement('p');p.className='sub';p.textContent=t;return p}
+function box(cls){const d=document.createElement('div');d.className=cls;return d}
+
+// ---- town map ----
+function openMap(){
+  if(S)S.running=false;['startOv','nightOv','dayOv','overOv','placeOv'].forEach(id=>$(id).hidden=true);
+  if(!shop.phase)shop.phase='night';if(!shop.roo)shop.roo={open:false,orders:[]};
+  const night=shop.phase==='night';
+  $('shopDay').textContent='第 '+shop.day+' 天 · '+(night?'傍晚':'白天');$('shopMoney').textContent='¥'+shop.money;
+  $('shopHint').textContent=night?'天快黑了，去加工厂打饼干。':'天亮了，去饼干店开门，或者让袋鼠送外卖。';
+  const tonight=(shop.custom||[]).filter(o=>!o.made&&o.due===shop.day+1).length;
+  $('pFactory').textContent=night?('今晚开工 →'+(tonight?' · '+tonight+' 张定制单':'')):'白天休息，晚上再来';
+  $('pBakery').textContent=(night?'已打烊':'开门营业 →')+' · 柜台 '+shop.inv.length+' 块';
+  $('pRoo').textContent=shop.roo.open?(shop.roo.orders.length?shop.roo.orders.length+' 单等着送':'今天没有外卖单'):'未开通 · ¥'+ROO_PRICE;
+  $('pMod').textContent='强化针管和身体 · 换颜色';
+  $('town').querySelectorAll('.place').forEach(b=>b.classList.toggle('now',night?b.dataset.p==='factory':b.dataset.p==='bakery'||(b.dataset.p==='roo'&&shop.roo.orders.length>0)));
+  $('shopOv').hidden=false;if(S)hud();
+}
+const openShop=openMap;
+$('shopBtn').addEventListener('click',openMap);
+$('town').querySelectorAll('.place').forEach(b=>b.addEventListener('click',()=>openPlace(b.dataset.p)));
+$('shopMenu').addEventListener('click',()=>{$('shopOv').hidden=true;$('startOv').hidden=false});
+$('placeBack').addEventListener('click',openMap);
+$('nightMap').addEventListener('click',openMap);
+let resetArm=0;
+$('shopReset').addEventListener('click',()=>{
+  if(Date.now()-resetArm>3000){resetArm=Date.now();$('shopReset').textContent='再点一次确认清空所有进度';return}
+  shop=freshShop();saveShop();$('shopReset').textContent='重新开店（清空进度）';openMap();toast('已经重新开店')});
+
+// ---- the four places ----
+const ROO_PRICE=150;
+let curPlace='mod',rooSel=0;
+function openPlace(p){
+  curPlace=p;$('shopOv').hidden=true;$('placeOv').hidden=false;$('placeMoney').textContent='¥'+shop.money;
+  const body=$('placeBody');body.textContent='';const night=shop.phase==='night';
+  if(p==='mod'){
+    $('placeTitle').textContent='改装店';$('placeDesc').textContent='花钱强化自己：更稳的手、更耐干的眼睛、更好用的针管，还能换颜色。';
+    const u=box('ups');renderUps(u,['针管','人体改造']);body.append(sub('机能强化'),u);
+    const l=box('ups');renderLooks(l);body.append(sub('换色美化'),l);
+  }else if(p==='factory'){
+    $('placeTitle').textContent='加工厂';$('placeDesc').textContent=night?'流水线已经预热好了。今晚做出来的饼干明天拿去卖。':'工人都下班了，晚上再来开工。';
+    const go=document.createElement('button');go.type='button';go.className='btn go';go.textContent=night?'开工打饼干（'+(60+15*lv('owl'))+' 秒）':'白天不开工';go.disabled=!night;go.style.alignSelf='flex-start';go.onclick=startNight;
+    body.append(go);const u=box('ups');renderUps(u,['流水线']);body.append(sub('流水线强化'),u);
+  }else if(p==='bakery'){
+    $('placeTitle').textContent='饼干店';$('placeDesc').textContent=night?'已经打烊了。柜台里的饼干明天还能卖，放两晚就坏了。':'客人在门口排队了。';
+    const go=document.createElement('button');go.type='button';go.className='btn go';go.textContent=night?'打烊中':'开门营业';go.disabled=night;go.style.alignSelf='flex-start';go.onclick=startDay;
+    const inv=box('inv');fillInv(inv,shop.inv,null);
+    const u=box('ups');renderUps(u,['店铺']);body.append(go,sub('柜台（'+shop.inv.length+' 块）'),inv,sub('店铺升级'),u);
+  }else if(p==='roo'){
+    $('placeTitle').textContent='袋鼠外卖';
+    if(!shop.roo.open){
+      $('placeDesc').textContent='开通后，每天早上会有远方的订单。袋鼠帮你蹦着送过去，外卖价比店里高，但得在期限内送到。';
+      const go=document.createElement('button');go.type='button';go.className='btn go';go.textContent='开通外卖 ¥'+ROO_PRICE;go.disabled=shop.money<ROO_PRICE;go.style.alignSelf='flex-start';
+      go.onclick=()=>{if(shop.money<ROO_PRICE)return;shop.money-=ROO_PRICE;L().invest+=ROO_PRICE;shop.roo.open=true;shop.roo.orders=[];if(shop.phase==='day')genRoo();saveShop();sfx('clear');toast('袋鼠上岗了');openPlace('roo')};
+      body.append(go);
+    }else{
+      $('placeDesc').textContent='先选一张外卖单，再点柜台里合适的饼干，袋鼠马上出发。';
+      const os=box('orders');
+      if(!shop.roo.orders.length){const q=document.createElement('small');q.style.color='var(--muted)';q.textContent=night?'订单每天早上来。':'今天的单都送完了。';os.appendChild(q)}
+      rooSel=Math.min(rooSel,Math.max(0,shop.roo.orders.length-1));
+      shop.roo.orders.forEach((o,i)=>{const b=document.createElement('button');b.type='button';b.className='btn order'+(i===rooSel?' sel':'');
+        const t=document.createElement('b');t.textContent=o.to;const w=document.createElement('small');w.textContent='要：'+orderText(o);
+        const d=document.createElement('small');d.textContent=(o.due>shop.day?'明天':'今天')+'打烊前送到 · 外卖价 ×'+(o.mult*(1+.25*lv('roo_fee'))).toFixed(1);
+        b.append(t,w,d);b.onclick=()=>{rooSel=i;openPlace('roo')};os.appendChild(b)});
+      const inv=box('inv');fillInv(inv,shop.inv,deliver);
+      const u=box('ups');renderUps(u,['外卖']);
+      body.append(sub('外卖单'),os,sub('柜台（点饼干发货）'),inv,sub('外卖升级'),u);
+    }
+  }
+}
+const ROO_TO=['歌剧院后台','邦迪海滩救生塔','动物园考拉馆','大学图书馆','港口渔船','山上的天文台','消防站','电视台片场'];
+function genRoo(){
+  const n=2+lv('roo_slots');shop.roo.orders=[];
+  for(let i=0;i<n;i++){const o=makeOrder();shop.roo.orders.push({to:ROO_TO[Math.floor(Math.random()*ROO_TO.length)],s:o.s,minQ:o.minQ,needLine:o.needLine,needPerf:o.needPerf,special:o.special,mult:+(o.mult*1.5).toFixed(2),due:shop.day+1})}
+}
+function deliver(idx){
+  const o=shop.roo.orders[rooSel];if(!o){toast('先选一张外卖单');return}
+  const it=shop.inv[idx];if(!fits(o,it)){toast('这块不符合 '+o.to+' 的要求');buzz([30,30,30]);return}
+  const price=Math.round(it.value*(1+.2*lv('sign'))*(it.age?.7:1)*o.mult*(1+.25*lv('roo_fee')));
+  shop.money+=price;L().delivery+=price;L().deliveryN++;shop.inv.splice(idx,1);shop.roo.orders.splice(rooSel,1);rooSel=0;saveShop();
+  sfx('clear');buzz([40,30,40]);toast('袋鼠蹦去 '+o.to+' 了，入账 ¥'+price,1600);openPlace('roo');
+}
+
+// night: the normal belt game with the shop's upgrades, every finished cracker goes to the counter
+function startNight(){
+  if(!calibrated){$('placeOv').hidden=true;$('shopOv').hidden=true;$('startOv').hidden=false;toast('先在这里校准陀螺仪，再回饼干镇');return}
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
+  reset();Object.assign(S,{shop:true,lives:Infinity,made:[],unlocked:unlockedShapes(),zoomMax:3+lv('lens'),chargeMul:1+.25*lv('charge'),
+    steady:lv('steady'),eyeRate:1-.35*lv('eye'),beltSpeed:1-.3*lv('belt'),bench:lv('bench')});
+  S.timeLimit=S.timeLeft=60+15*lv('owl');
+  S.customQ=(shop.custom||[]).filter(o=>!o.made&&o.due===shop.day+1);
+  S.cracker=nextNightCracker();if(S.cracker.customId)setTimeout(()=>toast('先做定制单：'+S.cracker.customFor,1500),3300);
+  $('shopOv').hidden=true;$('placeOv').hidden=true;cv.style.filter='';beginCountdown();hud();setMode(gotTilt);toast('第 '+shop.day+' 晚 · 开工',1200);
+}
+function bakeDone(cr){
+  const accs=cr.accs||[],avg=accs.length?accs.reduce((a,b)=>a+b,0)/accs.length:0;
+  const q=avg>=.7&&cr.misses.length===0?3:avg>=.4?2:1;
+  const lines=cr.lines.filter(L=>L.ok).length,perf=cr.lines.filter(L=>L.perfectOk).length;
+  const kind=cr.kind||'plain';
+  const value=Math.round((SHAPE_PRICE[cr.shapeIdx]||20)*(.6+.4*q)*(1+.25*lines+.5*perf)*(kind==='gold'?3:kind==='jade'?5:1));
+  let customId=null;
+  if(cr.customId){const o=shop.custom.find(x=>x.id===cr.customId);
+    if(cr.targets.every(t=>t.ok)&&q>=o.minQ){o.made=true;customId=o.id;saveShop();setTimeout(()=>toast(o.name+' 的定制做好了! 明天他来取',1500),2100)}
+    else{S.customQ.unshift(o);setTimeout(()=>toast('定制没做对（孔的形状、力度或星级不够），再做一块',1600),2100)}}
+  const item={s:cr.shapeIdx,q,lines,perf,kind,value,age:0,customId,customFor:customId?cr.customFor:null,
+    holes:cr.targets.filter(t=>t.done).map(t=>[Math.round(t.hx),Math.round(t.hy),t.tip||0,t.depth??2,Math.round(t.pr||cr.hr)]).concat(cr.misses.map(m=>[Math.round(m.x),Math.round(m.y),m.tip||0,m.d??2,Math.round(m.r||cr.hr)]))};
+  S.made.push(item);L().made++;
+  setTimeout(()=>toast('做好一块 '+'★'.repeat(q)+'☆'.repeat(3-q)+(lines?' · '+lines+' 条连线':'')+(kind!=='plain'?' · '+KIND[kind].name:'')+' · 值 ¥'+value,1300),700);
+}
+function nightEnd(){
+  S.running=false;S.charging=false;S.carving=false;cv.style.filter='';
+  shop.inv=shop.inv.concat(S.made);shop.phase='day';if(shop.roo&&shop.roo.open)genRoo();saveShop();
+  $('nightSum').textContent=S.made.length?('今晚做好 '+S.made.length+' 块，总值约 ¥'+S.made.reduce((a,b)=>a+b.value,0)+'。柜台一共 '+shop.inv.length+' 块。'):'今晚一块都没做成…柜台还有 '+shop.inv.length+' 块。';
+  fillInv($('nightInv'),S.made,null);$('nightOv').hidden=false;hud();
+}
+function thumb(item){
+  const c=document.createElement('canvas'),d=Math.min(devicePixelRatio||1,2);c.width=80*d;c.height=56*d;const g=c.getContext('2d');
+  const sh=SHAPES[item.s]||SHAPES[0],k=Math.min(78/sh.w,54/sh.h)*.95;g.setTransform(d*k,0,0,d*k,40*d,28*d);
+  g.fillStyle=item.kind==='gold'?'#f2c230':item.kind==='jade'?'#5fc79a':'#e7bd72';g.fill(sh.path);g.strokeStyle='#b9833c';g.lineWidth=2/k;g.stroke(sh.path);
+  for(const [x,y,t,dp,r] of item.holes){g.save();g.translate(x,y);g.fillStyle=HOLE_COL[dp][0];g.fill(tipPath(t,r));g.restore()}
+  return c;
+}
+function fillInv(el,items,onPick){
+  el.textContent='';
+  items.forEach((it,i)=>{const b=document.createElement('button');b.type='button';b.className='btn item '+(it.kind||'');
+    const nm=document.createElement('b');nm.textContent=(SHAPES[it.s]||SHAPES[0]).name.replace('苏打','');
+    const st=document.createElement('span');st.className='st';st.textContent='★'.repeat(it.q)+'☆'.repeat(3-it.q);
+    const tg=document.createElement('span');tg.textContent=(it.customId?'定制 · '+it.customFor+' · ':'')+(it.kind!=='plain'?KIND[it.kind].name.slice(0,2)+' · ':'')+(it.perf?'完美连线':it.lines?it.lines+' 条连线':'无连线')+(it.age?' · 隔夜':'');
+    const pr=document.createElement('span');pr.textContent='¥'+Math.round(it.value*(1+.2*lv('sign'))*(it.age?.7:1));
+    b.append(thumb(it),nm,st,tg,pr);if(onPick)b.onclick=()=>onPick(i);else b.disabled=false;el.appendChild(b)});
+  if(!items.length){const p=document.createElement('span');p.textContent='空的';el.appendChild(p)}
+}
+
+// day: customers with orders queue at the counter
+const CUST_NAMES=['上班族小王','小学生','隔壁奶奶','健身教练','外卖骑手','美术生','程序员','收藏家'];
+let day=null;
+$('dayBtn').addEventListener('click',startDay);
+function startDay(){
+  if(shop.phase!=='day'){toast('还没天亮');return}
+  ['nightOv','placeOv','shopOv'].forEach(id=>$(id).hidden=true);$('dayOv').hidden=false;
+  day={t:0,len:50,custs:[],sel:0,spawn:1,income:0,sold:0,timer:null,last:performance.now(),commissionAt:Math.random()<.65?12+Math.random()*22:-1};
+  // yesterday's commissions: whoever's cracker is ready comes to pick it up; the others leave disappointed
+  shop.custom=shop.custom||[];
+  for(const o of shop.custom.filter(o=>o.due===shop.day)){
+    if(o.made)day.custs.push({name:o.name,pickup:o.id,s:o.s,minQ:o.minQ,pat:40,left:40,mult:3,o});
+    else setTimeout(()=>toast(o.name+'：我的定制呢? 失望地走了',1800),600);
+  }
+  shop.custom=shop.custom.filter(o=>o.due!==shop.day||o.made);saveShop();
+  $('dayTitle').textContent='第 '+shop.day+' 天 · 白天';renderDay();
+  day.timer=setInterval(dayTick,100);
+}
+function makeOrder(){
+  const u=unlockedShapes(),r=Math.random();let s=null;
+  if(shop.inv.length&&r<.5)s=shop.inv[Math.floor(Math.random()*shop.inv.length)].s;else if(r<.8)s=Math.floor(Math.random()*u);
+  const minQ=Math.random()<.6?1:Math.random()<.75?2:3;
+  const needLine=shop.day>=2&&Math.random()<.22,needPerf=shop.day>=3&&Math.random()<.1;
+  const special=Math.random()<.07&&shop.day>=2?(Math.random()<.6?'gold':'jade'):null;
+  const name=special?'收藏家':CUST_NAMES[Math.floor(Math.random()*(CUST_NAMES.length-1))];
+  const pat=(16+Math.random()*6)*(1+.25*lv('bell'));
+  return {name,s,minQ,needLine,needPerf,special,pat,left:pat,mult:1+.3*((s!=null)+(minQ-1)*.5+needLine+needPerf*2)+(special?1:0)};
+}
+function orderText(o){
+  const w=[];w.push(o.special?KIND[o.special].name:o.s!=null?SHAPES[o.s].name:'什么形状都行');
+  if(o.minQ>1)w.push('至少 '+'★'.repeat(o.minQ));if(o.needPerf)w.push('要有完美连线');else if(o.needLine)w.push('要有连线花纹');
+  return w.join('，');
+}
+function fits(o,it){if(o.pickup)return it.customId===o.pickup;if(o.commission)return false;return (o.special?it.kind===o.special:true)&&(o.s==null||o.s===it.s)&&it.q>=o.minQ&&(!o.needLine||it.lines>0)&&(!o.needPerf||it.perf>0)}
+function dayTick(){
+  const now=performance.now(),dt=(now-day.last)/1000;day.last=now;day.t+=dt;
+  if(day.commissionAt>0&&day.t>=day.commissionAt&&day.custs.length<3){day.commissionAt=-1;day.custs.push(makeCommission());toast('有客人想定制饼干!',1300)}
+  day.spawn-=dt;if(day.spawn<=0&&day.custs.length<3&&day.t<day.len-4){day.custs.push(makeOrder());day.spawn=(3+Math.random()*3)/(1+.25*lv('bell'))}
+  for(const c of day.custs)c.left-=dt;
+  const gone=day.custs.filter(c=>c.left<=0);if(gone.length){for(const g of gone)if(g.pickup)shop.custom=shop.custom.filter(o=>o.id!==g.pickup);day.custs=day.custs.filter(c=>c.left>0);toast(gone[0].name+' 等不及走了');day.sel=Math.min(day.sel,Math.max(0,day.custs.length-1))}
+  $('dayBar').style.width=Math.max(0,100-day.t/day.len*100)+'%';
+  if(day.t>=day.len)return endDay();
+  renderCusts();
+}
+function renderCusts(){
+  const el=$('custs');el.textContent='';
+  if(!day.custs.length){const p=document.createElement('span');p.style.color='#6b5b42';p.textContent='暂时没有客人…';el.appendChild(p)}
+  day.custs.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.className='cust'+(i===day.sel?' sel':'')+(c.left<c.pat*.3?' angry':'');
+    const n=document.createElement('b');n.textContent=c.name+(c.commission?' · 想定制':c.pickup?' · 来取定制':'');const o=document.createElement('small');
+    o.textContent=c.commission?('定制：'+commissionText(c.o)+'，明天来取'):c.pickup?('取货：'+commissionText(c.o)):'想要：'+orderText(c);
+    const pay=document.createElement('small');pay.textContent=c.commission?'取货时付 3 倍价钱，点他接单':c.pickup?'点他，再点做好的定制饼干':'愿意多付 '+Math.round((c.mult-1)*100)+'%';
+    if(c.commission||c.pickup)b.style.borderColor='#c58a00';
+    const pt=document.createElement('span');pt.className='pat';const pi=document.createElement('i');pi.style.width=Math.max(0,c.left/c.pat*100)+'%';pt.appendChild(pi);
+    b.append(n,o,pay,pt);b.onclick=()=>{if(c.commission&&day.sel===i){acceptCommission(i);return}day.sel=i;renderCusts();if(c.commission)toast('再点一次接下这个定制',1200)};el.appendChild(b)});
+}
+function renderDay(){$('dayMoney').textContent='¥'+shop.money;renderCusts();fillInv($('counter'),shop.inv,sellTo)}
+function makeCommission(){
+  const o={id:Date.now()+''+Math.floor(Math.random()*1e4),name:CUST_NAMES[Math.floor(Math.random()*(CUST_NAMES.length-1))],
+    s:Math.floor(Math.random()*unlockedShapes()),tip:Math.floor(Math.random()*TIPS.length),depth:Math.floor(Math.random()*3),minQ:2,due:shop.day+1,made:false};
+  return {name:o.name,commission:true,o,pat:26,left:26,mult:1,minQ:2};
+}
+function commissionText(o){return SHAPES[o.s].name+'，孔全部是'+TIPS[o.tip]+'形'+DEPTH[o.depth]+'孔，至少 ★★'}
+function acceptCommission(i){
+  const c=day.custs[i];shop.custom.push(c.o);day.custs.splice(i,1);day.sel=0;saveShop();
+  toast('接单了! 今晚去加工厂先做 '+c.o.name+' 的定制',1800);sfx('clear');buzz([40]);renderCusts();
+}
+// a commissioned cracker: the customer's shape, every ring asks for the customer's tip and strength
+function customCracker(o){
+  const c=newCracker(Math.max(2,S.level),o.s);c.kind='plain';c.dust=null;
+  for(const t of c.targets){t.need=o.depth;t.needTip=o.tip}
+  c.customId=o.id;c.customFor=o.name+'的'+SHAPES[o.s].name;return c;
+}
+function sellTo(idx){
+  const c=day.custs[day.sel];if(!c){toast('还没有客人');return}
+  if(c.commission){toast('这位是来定制的，点他一下接单');return}
+  const it=shop.inv[idx];
+  if(!fits(c,it)){c.left-=c.pat*.3;toast(c.name+'：这不是我要的');buzz([30,30,30]);renderCusts();return}
+  const tip=c.left>c.pat*.6?1.2:1;
+  const price=Math.round(it.value*(1+.2*lv('sign'))*(it.age?.7:1)*c.mult*tip);
+  if(c.pickup){shop.custom=shop.custom.filter(o=>o.id!==c.pickup);L().custom+=price;L().customN++}else{L().sales+=price;L().salesN++}
+  shop.money+=price;day.income+=price;day.sold++;shop.inv.splice(idx,1);day.custs.splice(day.sel,1);day.sel=0;saveShop();
+  toast('卖出 ¥'+price+(tip>1?'（含小费）':''));sfx('clear');buzz([40]);renderDay();
+}
+$('dayClose').addEventListener('click',endDay);
+function endDay(){
+  if(!day)return;clearInterval(day.timer);
+  // leftovers go stale: one night old sells for less, two nights old gets thrown out
+  shop.inv.forEach(it=>it.age=(it.age||0)+1);const thrown=shop.inv.filter(it=>it.age>=2);shop.inv=shop.inv.filter(it=>it.age<2);
+  L().tossed+=thrown.length;L().tossedValue+=thrown.reduce((a,b)=>a+b.value,0);
+  // undelivered takeaway orders that are due today expire
+  let lost=0;if(shop.roo){const b2=shop.roo.orders.length;shop.roo.orders=shop.roo.orders.filter(o=>o.due>shop.day);lost=b2-shop.roo.orders.length}
+  const led=L(),dayNo=shop.day;
+  const revenue=led.sales+led.custom+led.delivery,material=(led.made+led.broken)*MATERIAL,cost=material+RENT,profit=revenue-cost;
+  shop.money-=cost;shop.led=freshLedger();shop.day++;shop.phase='night';saveShop();
+  $('dayOv').hidden=true;day=null;
+  showReport(dayNo,led,{revenue,material,cost,profit,lost});
+}
+
+function showReport(dayNo,led,r){
+  $('repTitle').textContent='第 '+dayNo+' 天 · 账本';
+  const rows=[
+    ['营业额','',r.revenue,'head'],
+    ['　店内零售',led.salesN+' 块',led.sales],
+    ['　定制取货',led.customN+' 块',led.custom],
+    ['　袋鼠外卖',led.deliveryN+' 单',led.delivery],
+    ['成本','',-r.cost,'head'],
+    ['　面粉原料','做 '+led.made+' 块 + 裂 '+led.broken+' 块，每块 ¥'+MATERIAL,-r.material],
+    ['　房租水电','',-RENT],
+    ['利润','',r.profit,'total'],
+  ];
+  const t=$('repTable');t.textContent='';
+  for(const [a,b,v,cls] of rows){const tr=document.createElement('tr');if(cls)tr.className=cls;
+    const c1=document.createElement('td');c1.textContent=a;const c2=document.createElement('td');c2.textContent=b;
+    const c3=document.createElement('td');c3.textContent=(v<0?'-¥':'¥')+Math.abs(v);if(cls==='total')c3.className=v>=0?'pos':'neg';
+    tr.append(c1,c2,c3);t.appendChild(tr)}
+  const notes=[];
+  if(led.tossed)notes.push('扔掉 '+led.tossed+' 块放坏的饼干（原值 ¥'+led.tossedValue+'）');
+  if(r.lost)notes.push(r.lost+' 张外卖单过期');
+  if(led.invest)notes.push('今天在升级上投入 ¥'+led.invest+'（不算进当天成本）');
+  notes.push('现在手上有 ¥'+shop.money+(shop.money<0?'，已经欠钱了':''));
+  $('repNote').textContent=notes.join('；')+'。';
+  $('reportOv').hidden=false;sfx(r.profit>=0?'clear':'miss');
+}
+$('repBack').addEventListener('click',()=>{$('reportOv').hidden=true;openMap()});
+
+let last=performance.now();
+const bubble=$('bubble');
+function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(S){update(dt);draw()}
+  if(!$('startOv').hidden){const k=26/20;const bx=Math.max(-26,Math.min(26,tilt.x*k)),by=Math.max(-26,Math.min(26,tilt.y*k));bubble.style.transform=`translate(${bx}px,${by}px)`}
+  requestAnimationFrame(loop)}
+
+function start(mode){
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
+  if(!calibrated)return;
+  reset();
+  if(mode==='create'){S.mode='create';S.cracker=blank(0);S.lives=Infinity}
+  if(mode==='engrave'){S.mode='engrave';S.tplIdx=0;S.cracker=engraveBlank(0,0);S.lives=Infinity}
+  cv.style.filter='';
+  beginCountdown();
+  $('startOv').hidden=true;$('overOv').hidden=true;hud();
+  setMode(gotTilt);
+  try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
+}
+$('startBtn').addEventListener('click',()=>start('game'));
+$('createBtn').addEventListener('click',()=>start('create'));
+$('engraveBtn').addEventListener('click',()=>start('engrave'));
+$('againBtn').addEventListener('click',()=>{reset();$('overOv').hidden=true;setMode(tiltMode);hud();beginCountdown()});
+function beginCountdown(){S.countdown=3;$('countNum').textContent='3';$('count').hidden=false}
+$('timeSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  timeLimit=+b.dataset.t;$('timeSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  try{localStorage.setItem('sodaTime',timeLimit)}catch(e){}
+}));
+try{const t=localStorage.getItem('sodaTime');if(t!=null){const b=$('timeSeg').querySelector(`[data-t="${+t}"]`);if(b)b.click()}}catch(e){}
+reset();S.running=false;S.needle={x:-40,y:10};
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body></html>
