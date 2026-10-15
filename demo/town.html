@@ -44,7 +44,8 @@
   /* 饼干店营业界面（照 shop.html）：自己一张高清画布 #sc，按钮都在 #shopUI 里 */
   #sc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1}
   #sSafe{position:fixed;inset:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-  body.shop #c,body.shop #hud,body.shop #tip,body.shop #toast{display:none!important}
+  #c3{position:fixed;inset:0;width:100%;height:100%;display:block}
+  body.shop #c3,body.shop #c,body.shop #hud,body.shop #tip,body.shop #toast{display:none!important}
   #shopUI .chip{background:#3D2A5C;border:3px solid #2B1B3D;box-shadow:inset 0 0 0 2px #5B4580,0 3px 0 #1A1026;padding:3px 9px;font-size:13px;font-weight:700}
   #shopUI .px{font-weight:400;font-family:"ZCOOL KuaiLe","Noto Sans SC",sans-serif}
   /* 右上：售价比 */
@@ -114,14 +115,16 @@
 <div class="panel" id="panel"><div class="card" id="card"></div></div>
 
 <script src="../tune.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="town3d.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 const cv=$('c'),ctx=cv.getContext('2d');
 const lc=document.createElement('canvas'),lx=lc.getContext('2d');
 let S=3,LW=200,LH=120,DPR=1;
-// 已定：俯视角、只横屏（h）。留着 ?view=side 横版侧视、?view=top 横竖屏都行 两个对比版本
-const VIEW=(()=>{const v=new URLSearchParams(location.search).get('view');return ['top','h','side'].includes(v)?v:'h'})();
+// 默认：45 度俯视立体小镇（town3d.js，参考明亮珍珠）。留着 ?view=h 平面俯视、?view=side 横版侧视、?view=top 横竖屏都行 三个对比版本
+const VIEW=(()=>{const v=new URLSearchParams(location.search).get('view');return ['top','h','side','45'].includes(v)?v:'45'})();
 let CAM=0,GY=100,WORLD=400;
 function resize(){
   DPR=Math.min(2,window.devicePixelRatio||1);
@@ -258,6 +261,7 @@ function noticeBoard(o){const l=o.x-Math.round(o.w/2),t=o.y-o.h-Math.round(o.h*0
   R(l+Math.round(o.w*0.25),o.y-Math.round(o.h*0.4),2,Math.round(o.h*0.4),'#7A4D2B');R(l+Math.round(o.w*0.7),o.y-Math.round(o.h*0.4),2,Math.round(o.h*0.4),'#7A4D2B');
   R(l,t,o.w,o.h,'#2B1B3D');R(l+1,t+1,o.w-2,o.h-2,'#C98A4A');for(let i=0;i<3;i++)R(l+3,t+3+i*Math.round(o.h/4),o.w-6-(i%2)*4,Math.max(1,Math.round(o.h/10)),'#FFF4D6');o.box=[l,t,o.w,o.h]}
 function layoutTown(){
+  if(VIEW==='45')return T3.layout();
   if(VIEW!=='top'||LW>=LH)return layoutMap();
   const top=Math.ceil(80/S),H=LH-top,land=VIEW==='h'||LW>=LH;
   const MW=land?1400:800,MH=land?800:1400,k=Math.min(LW/MW,H/MH);
@@ -402,6 +406,7 @@ cv.addEventListener('pointerdown',e=>{
   if(!$('panel').classList.contains('hidden')||DLG)return;
   if(scene==='home')return homeTap(e.clientX/S,e.clientY/S);
   if(scene!=='town')return;
+  if(VIEW==='45')return T3.tap(e.clientX,e.clientY);
   const x=e.clientX/S+CAM,y=e.clientY/S,side=VIEW==='side';
   const n=npcs.find(n=>{const h=sprH(n.kind||'redbaby');return Math.abs(n.x-x)<h*0.4&&y>n.y-h&&y<n.y+3});
   if(n){me.tx=n.x+(me.x<n.x?-10:10);me.ty=side?me.y:n.y;me.goal=null;n.wait=4;return chat(n)}
@@ -537,7 +542,7 @@ function homeTap(x,y){
 function homeAct(g){
   if(g==='cross')return goClinic();
   if(g==='shops')return shopsPanel();
-  if(g==='door'){scene='town';const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+5;me.goal=null;return}
+  if(g==='door'){scene='town';const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+(VIEW==='45'?22:5);me.goal=null;return}
   if(G.phase==='night')return show(`<h2>床</h2><p>今天辛苦了。睡一觉，明天早上 08:00 上帝会发新的旨意。</p><div class="row"><button class="px" id="sleepB">睡觉，进入第 ${G.day+1} 天</button><button class="px gray" id="xB">再等等</button></div>`),bind('sleepB',sleep),bind('xB',hide);
   msg('床',`现在才 ${fmtClock(G.clock)}，天还没黑。白天还能营业 ${2-G.sess} 次，营业完天黑了再睡。`);
 }
@@ -597,7 +602,7 @@ function closeShop(){
     <tr><td><b>今日利润</b></td><td><b>${prof+bonus}</b></td></tr></table>
     <p>17:00，打烊了，店都关门了，天慢慢黑下来。现在有 <b>${G.coins}</b> 金币。可以在镇上找奶龙聊天，或者回家升级、睡觉。</p>
     <div class="row"><button class="px" id="homeB">回家</button><button class="px gray" id="walkB">在镇上逛逛</button></div>`);
-  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+5;me.goal='home'});bind('walkB',()=>{hide();scene='town'});
+  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+(VIEW==='45'?22:5);me.goal='home'});bind('walkB',()=>{hide();scene='town'});
 }
 
 // ---------- day: hair / tattoo, punched on the spot ----------
@@ -793,6 +798,7 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   if(scene==='shop'){requestAnimationFrame(frame);return} // 饼干店营业界面自己画（ShopMode）
+  if(VIEW==='45'){if(scene==='town'){ctx.clearRect(0,0,cv.width,cv.height);T3.frame(dt);$('hud').style.display='flex';requestAnimationFrame(frame);return}T3.hide()}
   lx.clearRect(0,0,LW,LH);
   if(scene==='punch'&&P)drawPunch(dt);else if(scene==='home')drawHome(dt);else VIEW==='side'?drawSide(dt):drawTown(dt);
   ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,cv.width,cv.height);
