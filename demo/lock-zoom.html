@@ -17,6 +17,8 @@
   #lockB.on{background:#7fb0ff;transform:translateY(4px);box-shadow:0 2px 0 #1e4fa8}
   #punch{right:calc(18px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));width:96px;height:96px;background:#ffd23f;color:#3a2a00;font-size:20px;box-shadow:0 6px 0 #a8820f}
   #punch:active{transform:translateY(4px);box-shadow:0 2px 0 #a8820f}
+  #sizeB{left:calc(128px + env(safe-area-inset-left));bottom:calc(40px + env(safe-area-inset-bottom));width:68px;height:68px;background:#2a3550;color:#7fb0ff;font-size:15px;line-height:1.15;box-shadow:0 5px 0 #161d2e}
+  #sizeB:active{transform:translateY(3px);box-shadow:0 2px 0 #161d2e}
   #zoomB{right:calc(128px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:68px;height:68px;background:#2a3550;color:#ffd23f;font-size:15px;line-height:1.15;box-shadow:0 5px 0 #161d2e}
   #zoomB:active{transform:translateY(3px);box-shadow:0 2px 0 #161d2e}
   .btn{background:#ffd23f;color:#3a2a00;border:0;border-radius:12px;padding:12px 22px;font-size:17px;font-weight:700}
@@ -36,6 +38,7 @@
 <div id="topR"><button class="ghost" id="calB">重新校准</button><button class="ghost" id="invX">左右反转</button><button class="ghost" id="invY">上下反转</button></div>
 <div id="tip"></div>
 <button id="lockB" class="pad">固定</button>
+<button id="sizeB" class="pad">针头<br>大</button>
 <button id="zoomB" class="pad">放大<br>1×</button>
 <button id="punch" class="pad">打孔</button>
 
@@ -45,6 +48,7 @@
     <p>针头只靠<b>倾斜手机</b>移动，手指只按按钮。</p>
     <p><b>左手「固定」</b>：按住时，针头只能在按下那一刻的位置附近小范围内移动，松开恢复自由。</p>
     <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干变大、孔变细，陀螺仪移动速度降低（2× 为 0.8 倍，3× 为 0.65 倍）。</p>
+    <p><b>左手「针头」</b>：点一下切换针头大小 大 → 中 → 小，针头越小孔越小。</p>
     <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
     <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
     <button class="btn" id="startBtn">开启陀螺仪并开始</button>
@@ -116,6 +120,7 @@ const BW=320,BH=200;          // biscuit size (world units), same as 长方苏�
 const TARGET_R=16;            // target radius (hole diameter = width/10 at 1×)
 const HOLE_R0=16;             // hole radius at 1×; shrinks as 1/zoom
 const ZOOMS=[1,2,3];
+const SIZES=[{n:'大',k:1},{n:'中',k:0.7},{n:'小',k:0.5}]; // needle size → hole radius multiplier
 const ZOOM_SPEED={1:1,2:0.8,3:0.65}; // needle speed multiplier per zoom level
 const LOCK_R=48;              // lock range radius (world units) = 1.5 hole diameters at 1×; fixed, does not change with zoom
 let s0=1;
@@ -126,13 +131,14 @@ function newRound(){
   S={t:0,
     tx:(Math.random()-.5)*(BW-70),ty:(Math.random()-.5)*(BH-60),
     nx:-BW*0.3,ny:BH*0.25,vx:0,vy:0,      // needle (world)
-    zi:S?S.zi:0,cam:{x:0,y:0},
+    zi:S?S.zi:0,si:S?S.si:0,cam:{x:0,y:0},
     lock:null,hole:null,done:false,msg:'',msgT:0};
   S.cam={x:S.nx,y:S.ny};
   syncZoom();
 }
 function zoom(){return ZOOMS[S?S.zi:0]}
-function holeR(){return HOLE_R0/zoom()}
+function sizeK(){return SIZES[S?S.si:0].k}
+function holeR(){return HOLE_R0*sizeK()/zoom()}
 function flash(m,t){if(S){S.msg=m;S.msgT=t||1.2}}
 function syncZoom(){$('zoomB').innerHTML='放大<br>'+zoom()+'×'}
 
@@ -146,8 +152,10 @@ lockB.addEventListener('pointerup',lockUp);lockB.addEventListener('pointercancel
 $('zoomB').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;
   S.zi=(S.zi+1)%ZOOMS.length;syncZoom();
   buzz(10)});
+$('sizeB').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;
+  S.si=(S.si+1)%SIZES.length;$('sizeB').innerHTML='针头<br>'+SIZES[S.si].n;buzz(10)});
 $('punch').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;doPunch()});
-['lockB','zoomB','punch'].forEach(id=>$(id).addEventListener('contextmenu',e=>e.preventDefault()));
+['lockB','sizeB','zoomB','punch'].forEach(id=>$(id).addEventListener('contextmenu',e=>e.preventDefault()));
 
 function doPunch(){
   const z=zoom(),hr=holeR();
@@ -160,7 +168,7 @@ function doPunch(){
   else{const pct=d/TARGET_R;title=pct<=.15?'完美正中！':pct<=.4?'很准':pct<=.7?'还行':'擦边';score=Math.round(10+90*acc*acc)}
   S.hole={x:S.nx,y:S.ny,r:hr};S.done=true;
   buzz(score>0&&acc>.85?[60,30,60,30,60]:[60]);
-  const detail=`偏差 ${d.toFixed(1)}（目标半径 ${TARGET_R}）<br>打孔时 ${z}× · 孔半径 ${hr.toFixed(1)} · ${S.lock?'固定中':'未固定'}`;
+  const detail=`偏差 ${d.toFixed(1)}（目标半径 ${TARGET_R}）<br>打孔时 ${z}× · 针头${SIZES[S.si].n} · 孔半径 ${hr.toFixed(1)} · ${S.lock?'固定中':'未固定'}`;
   setTimeout(()=>{
     $('resTitle').textContent=title;$('resScore').textContent=score+' 分';$('resDetail').innerHTML=detail;
     $('resP').classList.remove('hidden');
@@ -199,7 +207,7 @@ function update(dt){
   // camera: centred at 1×, follows the needle when zoomed in
   const tgt=z===1?{x:0,y:0}:{x:S.nx,y:S.ny};
   const cf=1-Math.exp(-6*dt);S.cam.x+=(tgt.x-S.cam.x)*cf;S.cam.y+=(tgt.y-S.cam.y)*cf;
-  $('hud').innerHTML=`放大 <b>${z}×</b> · 速度 ${Math.round(ZOOM_SPEED[z]*100)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
+  $('hud').innerHTML=`针头 <b>${SIZES[S.si].n}</b> · 放大 <b>${z}×</b> · 速度 ${Math.round(ZOOM_SPEED[z]*100)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
   $('tip').textContent=S.done?'':S.lock?'松开「固定」恢复自由移动':'倾斜手机靠近目标，按住「固定」稳住，再「放大」微调';
 }
 
@@ -232,7 +240,7 @@ function draw(){
   // needle: constant size on screen
   if(!S.done){
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    const x=ox+S.nx*k,y=oy+S.ny*k,r=HOLE_R0*s0;
+    const x=ox+S.nx*k,y=oy+S.ny*k,r=HOLE_R0*s0*sizeK();
     ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();
     ctx.strokeStyle='#ffd23faa';ctx.lineWidth=1.2;ctx.beginPath();
     ctx.moveTo(x-r-6,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+6,y);
