@@ -51,6 +51,10 @@
   #dlgMore{position:absolute;right:12px;bottom:6px;font-size:12px;color:#8a7a6a}
   #pL,#pR{position:absolute;bottom:calc(10px + 26% - 8px);width:min(22vw,180px);image-rendering:pixelated}
   #pL{left:calc(16px + env(safe-area-inset-left))}#pR{right:calc(16px + env(safe-area-inset-right))}
+  #rot{position:fixed;inset:0;z-index:20;background:#1b1430;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:18px;font-weight:900;color:#ffd23f;text-align:center}
+  #rot div{font-size:64px;animation:spin 1.6s ease-in-out infinite}
+  @keyframes spin{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
+  #views{font-size:12px;color:#a99cc6;text-align:center!important}#views a{color:#ffd23f;margin:0 4px}
   .hidden{display:none!important}
 </style>
 </head>
@@ -63,6 +67,7 @@
   <span class="chip" id="edict"></span>
 </div>
 <div id="tip"></div>
+<div id="rot"><div>📱</div>这一版是横屏的，请把手机横过来</div>
 <div id="toast"></div>
 <div id="dlg" class="hidden"><canvas id="pL" width="48" height="34"></canvas><canvas id="pR" width="48" height="34"></canvas><div id="dlgBox"><span id="dlgName"></span><p id="dlgText"></p><span id="dlgMore">▼ 点一下继续</span></div></div>
 
@@ -82,13 +87,17 @@ const $=id=>document.getElementById(id);
 const cv=$('c'),ctx=cv.getContext('2d');
 const lc=document.createElement('canvas'),lx=lc.getContext('2d');
 let S=3,LW=200,LH=120,DPR=1;
+// 三个对比版本：默认俯视（横竖屏都行）· ?view=h 俯视只横屏 · ?view=side 横版侧视
+const VIEW=new URLSearchParams(location.search).get('view')||'top';
+let CAM=0,GY=100,WORLD=400;
 function resize(){
   DPR=Math.min(2,window.devicePixelRatio||1);
   cv.width=innerWidth*DPR;cv.height=innerHeight*DPR;
   S=Math.max(2,Math.floor(Math.min(innerWidth,innerHeight)/120));
   LW=Math.ceil(innerWidth/S);LH=Math.ceil(innerHeight/S);
   lc.width=LW;lc.height=LH;
-  layoutTown();
+  $('rot').style.display=VIEW!=='top'&&innerHeight>innerWidth?'flex':'none';
+  VIEW==='side'?layoutSide():layoutTown();
 }
 addEventListener('resize',resize);
 
@@ -147,7 +156,7 @@ const SK_B={home:[158,67,315,206],biscuit:[888,67,315,206],hair:[259,457,315,206
 const SK_P=[[[473,226],[888,226]],[[316,273],[316,385],[337,385],[337,457]],[[1057,273],[1057,457]],[[574,600],[962,600]]];
 function rnd(seed){let s=seed;return()=>(s=(s*16807)%2147483647)/2147483647}
 function layoutTown(){
-  const top=Math.ceil(80/S),H=LH-top,land=LW>=LH;
+  const top=Math.ceil(80/S),H=LH-top,land=VIEW==='h'||LW>=LH;
   const MW=land?1400:800,MH=land?800:1400,k=Math.min(LW/MW,H/MH);
   const ox=Math.round((LW-MW*k)/2),oy=top+Math.round((H-MH*k)/2);
   const T=(x,y)=>land?[ox+x*k,oy+y*k]:[ox+y*k,oy+x*k];
@@ -222,12 +231,49 @@ function drawTown(dt){
   if(G.phase==='night'){lx.fillStyle='#0b0b3a8c';lx.fillRect(0,0,LW,LH);
     B.forEach(b=>{if(!G.open[b.k]||!b.win)return;b.win.forEach(([x,y,w,h])=>R(x,y,w,h,'#ffe27a'))})}
 }
+// ---------- 横版侧视小镇：一条街，从左到右 主角家 · 苏打饼干店 · 植发店 · 纹身店，镜头跟着奶龙左右走 ----------
+function layoutSide(){
+  const top=Math.ceil(80/S);GY=Math.round(LH*0.78);HL=null;
+  const bh=Math.max(34,Math.min(72,GY-top-16)),bw=Math.round(bh*1.3),gap=Math.round(bw*0.6),x0=Math.round(gap*0.9+bw/2);
+  B=['home','biscuit','hair','tattoo'].map((k,i)=>({k,x:x0+i*(bw+gap),y:GY,w:bw,h:bh}));
+  WORLD=B[3].x+bw/2+Math.round(gap*0.9);
+  deco=[];for(let i=0;i<=4;i++){const a=i?B[i-1].x+bw/2:0,b=i<4?B[i].x-bw/2:WORLD;
+    deco.push({t:'tree',x:Math.round((a+b)/2-6),y:GY-1});if(b-a>30)deco.push({t:'lamp',x:Math.round((a+b)/2+8),y:GY})}
+  const spot=()=>({x:6+Math.random()*(WORLD-12),y:GY+3+Math.round(Math.random()*4)});
+  npcs=[];for(let i=0;i<8;i++){const p=spot();npcs.push({x:p.x,y:p.y,tx:spot().x,ty:p.y,wait:Math.random()*3,spot:()=>({x:spot().x,y:p.y})})}
+  if(!me.goal){me.x=me.tx=B[0].x;}me.y=me.ty=GY+5;
+}
+function drawSide(dt){
+  townT+=dt;const night=G.phase==='night';
+  for(let y=0;y<GY;y+=2)R(0,y,LW,2,night?(y<GY*0.5?'#141238':'#1f1a4a'):(y<GY*0.35?'#7cc6ff':y<GY*0.7?'#9fd8ff':'#c9ecff'));
+  if(night)for(let i=0;i<40;i++)R((i*53)%LW,(i*29)%Math.round(GY*0.6),1,1,i%3?'#fff8e6':'#ffd23f');
+  else for(let i=0;i<5;i++){const cx=((i*97-CAM*0.2+townT*3)%(LW+60)+LW+60)%(LW+60)-30,cy=12+(i*17)%Math.round(GY*0.3);R(cx,cy,22,5,'#ffffff');R(cx+5,cy-3,12,3,'#ffffff')}
+  for(let x=0;x<LW;x++){const wx=x+CAM*0.4,h=Math.round(10+6*Math.sin(wx/37)+4*Math.sin(wx/13));R(x,GY-6-h,1,h,night?'#2a2a5a':'#7fc57a')}
+  // 走路：横版只左右走
+  const dx=me.tx-me.x,sp=70*dt,walking=Math.abs(dx)>sp;
+  if(walking){me.x+=Math.sign(dx)*sp;me.dir=Math.sign(dx)}else{me.x=me.tx;if(me.goal){const g=me.goal;me.goal=null;enterShop(g)}}
+  npcs.forEach(n=>{if(n.wait>0){n.wait-=dt;return}const e=n.tx-n.x,v=14*dt;
+    if(Math.abs(e)>v){n.x+=Math.sign(e)*v;n.walk=true}else{n.walk=false;n.wait=1+Math.random()*3;n.tx=n.spot().x}});
+  CAM=WORLD<=LW?Math.round((WORLD-LW)/2):Math.round(Math.max(0,Math.min(WORLD-LW,me.x-LW/2)));
+  lx.save();lx.translate(-CAM,0);
+  R(CAM,GY-6,LW,6,night?'#2f5a2a':'#5cb04a');
+  R(CAM,GY,LW,9,'#d8c8a0');for(let x=Math.floor(CAM/8)*8;x<CAM+LW;x+=8)R(x,GY,1,9,'#c4b48c');R(CAM,GY+8,LW,1,'#a8987a');
+  R(CAM,GY+9,LW,LH-GY-9,'#5a5670');for(let x=Math.floor(CAM/16)*16;x<CAM+LW;x+=16)R(x,GY+9+Math.round((LH-GY-9)/2),8,1,'#ffd23f');
+  deco.forEach(o=>{if(o.t==='tree')tree(o.x,o.y);else{R(o.x,o.y-26,2,26,'#3a3550');R(o.x-2,o.y-29,6,3,'#3a3550');R(o.x-1,o.y-26,4,2,night?'#ffe27a':'#d9d4e6')}});
+  B.forEach(b=>building(b));
+  if(night){lx.fillStyle='#0b0b3a8c';lx.fillRect(CAM,0,LW,LH);B.forEach(b=>{if(!G.open[b.k]||!b.win)return;b.win.forEach(([x,y,w,h])=>R(x,y,w,h,'#ffe27a'))});
+    deco.forEach(o=>{if(o.t==='lamp'){lx.fillStyle='#ffe27a33';lx.beginPath();lx.moveTo(o.x-1,o.y-26);lx.lineTo(o.x-9,o.y+8);lx.lineTo(o.x+11,o.y+8);lx.lineTo(o.x+3,o.y-26);lx.fill()}})}
+  const shadow=(x,y)=>{lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(x),Math.round(y),6,2,0,0,7);lx.fill()};
+  [...npcs.map(n=>({y:n.y,f:()=>{shadow(n.x,n.y);nailong(Math.round(n.x),Math.round(n.y),0,n.walk?townT+n.x:0,1,false)}})),
+   {y:me.y,f:()=>{shadow(me.x,me.y);nailong(Math.round(me.x),Math.round(me.y),0,walking?townT:0)}}].sort((a,b)=>a.y-b.y).forEach(i=>i.f());
+  lx.restore();
+}
 function townLabels(){
   ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
-  const fs=Math.max(11,Math.round(S*4));
+  const fs=Math.max(11,Math.round(S*4));ctx.lineJoin='round';
   ctx.font=`900 ${fs*DPR}px -apple-system,"PingFang SC",sans-serif`;
   B.forEach(b=>{const t=(b.k==='biscuit'?'苏打饼干店':SHOPS[b.k].name)+(G.open[b.k]?'':` · ${SHOPS[b.k].price}金币`);
-    const x=b.x*S*DPR,y=(b.y+5)*S*DPR;
+    const x=(b.x-CAM)*S*DPR,y=(b.y+(VIEW==='side'?14:5))*S*DPR;
     ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,x,y);ctx.fillStyle=G.open[b.k]?'#fff8e6':'#ffd23f';ctx.fillText(t,x,y)});
   ctx.restore();
 }
@@ -235,11 +281,12 @@ cv.addEventListener('pointerdown',e=>{
   if(!$('panel').classList.contains('hidden')||DLG)return;
   if(scene==='home')return homeTap(e.clientX/S,e.clientY/S);
   if(scene!=='town')return;
-  const x=e.clientX/S,y=e.clientY/S;
+  const x=e.clientX/S+CAM,y=e.clientY/S,side=VIEW==='side';
   const n=npcs.find(n=>Math.abs(n.x-x)<8&&y>n.y-16&&y<n.y+3);
-  if(n){me.tx=n.x+(me.x<n.x?-10:10);me.ty=n.y;me.goal=null;n.wait=4;return chat(n)}
+  if(n){me.tx=n.x+(me.x<n.x?-10:10);me.ty=side?me.y:n.y;me.goal=null;n.wait=4;return chat(n)}
   const b=B.find(b=>x>b.x-b.w/2-3&&x<b.x+b.w/2+3&&y>b.y-b.h-6&&y<b.y+8);
   if(b){me.tx=b.x;me.ty=b.y+5;me.goal=b.k}
+  else if(side){me.tx=Math.max(4,Math.min(WORLD-4,x));me.goal=null}
   else{me.tx=Math.max(4,Math.min(LW-4,x));me.ty=Math.max(Math.ceil(80/S),Math.min(LH-2,y));me.goal=null}
 });
 
@@ -252,9 +299,10 @@ function welcome(){
   <p>2078 年，上帝说：<b>苏打饼干一定要有孔。</b>你是针头奶龙，替上帝给小镇打孔。</p>
   <p><b>白天边做边卖</b>：开店前定好售价比，客人排队点单，你现场打孔，每块打完按评分估值、按售价上货架，比估值便宜卖得快、贵了卖得慢；定制单当场做，客人给表情反馈。打烊出账本。</p>
   <p><b>晚上</b>：店都关门了，可以在镇上找奶龙聊天，或者回<b>主角家</b>：桌上的奶帝十字架升级装备，旁边升级店铺、解锁<b>植发店</b>和<b>纹身店</b>，右边的床睡觉。</p>
-  <p>俯视角小镇：点建筑奶龙会走过去，点空地闲逛。打孔只靠<b>倾斜手机</b>，左手「固定」，右手「打孔」。电脑上用方向键。</p>
+  <p>${VIEW==='side'?'横版小镇：一条街左右走，点建筑奶龙会走过去，点空地闲逛。':'俯视角小镇：点建筑奶龙会走过去，点空地闲逛。'}打孔只靠<b>倾斜手机</b>，左手「固定」，右手「打孔」。电脑上用方向键。</p>
   <p>左上角是时钟：白天有<b>上午、下午两次营业</b>，17:00 后天黑关门；晚上可以点镇上的奶龙聊天，或者回家。</p>
   <div class="row"><button class="px" id="goB">进入小镇（第 ${G.day} 天 ${fmtClock(G.clock)}）</button></div>
+  <p id="views">对比版本：<a href="?view=top">俯视（横竖屏）</a>|<a href="?view=h">俯视 · 只横屏</a>|<a href="?view=side">横版侧视</a></p>
   <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，以策划案和 GAMEPLAY.md 为准。</p>`);
   bind('goB',hide);
 }
@@ -684,7 +732,7 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   lx.clearRect(0,0,LW,LH);
-  if(scene==='punch'&&P)drawPunch(dt);else if(scene==='home')drawHome(dt);else drawTown(dt);
+  if(scene==='punch'&&P)drawPunch(dt);else if(scene==='home')drawHome(dt);else VIEW==='side'?drawSide(dt):drawTown(dt);
   ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,cv.width,cv.height);
   ctx.drawImage(lc,0,0,LW*S*DPR,LH*S*DPR);
   $('hud').style.display=scene==='punch'?'none':'flex';
