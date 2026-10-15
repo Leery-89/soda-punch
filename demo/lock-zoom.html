@@ -47,7 +47,7 @@
     <h2>固定 + 放大 · 单孔 demo</h2>
     <p>针头只靠<b>倾斜手机</b>移动，手指只按按钮。</p>
     <p><b>左手「固定」</b>：按住时，针头只能在按下那一刻的位置附近小范围内移动，松开恢复自由。</p>
-    <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干变大、孔变细，陀螺仪移动速度降低（2× 为 0.8 倍，3× 为 0.65 倍）。</p>
+    <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干、目标和针头一起变大（孔在饼干上的大小不变），陀螺仪移动速度降低（2× 为 0.8 倍，3× 为 0.65 倍）。</p>
     <p><b>左手「针头」</b>：点一下切换针头大小 大 → 中 → 小，针头越小孔越小。</p>
     <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
     <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
@@ -138,7 +138,7 @@ function newRound(){
 }
 function zoom(){return ZOOMS[S?S.zi:0]}
 function sizeK(){return SIZES[S?S.si:0].k}
-function holeR(){return HOLE_R0*sizeK()/zoom()}
+function holeR(){return HOLE_R0*sizeK()}   // zoom does not change the hole size
 function flash(m,t){if(S){S.msg=m;S.msgT=t||1.2}}
 function syncZoom(){$('zoomB').innerHTML='放大<br>'+zoom()+'×'}
 
@@ -240,7 +240,7 @@ function draw(){
   // needle: constant size on screen
   if(!S.done){
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    const x=ox+S.nx*k,y=oy+S.ny*k,r=HOLE_R0*s0*sizeK();
+    const x=ox+S.nx*k,y=oy+S.ny*k,r=holeR()*k;   // ring = real hole size on the biscuit
     ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();
     ctx.strokeStyle='#ffd23faa';ctx.lineWidth=1.2;ctx.beginPath();
     ctx.moveTo(x-r-6,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+6,y);
