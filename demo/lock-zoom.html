@@ -44,7 +44,7 @@
     <h2>固定 + 放大 · 单孔 demo</h2>
     <p>针头只靠<b>倾斜手机</b>移动，手指只按按钮。</p>
     <p><b>左手「固定」</b>：按住时，针头只能在按下那一刻的位置附近小范围内移动，松开恢复自由。</p>
-    <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干变大、孔变细，陀螺仪移动速度按倍数降低。</p>
+    <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干变大、孔变细，陀螺仪移动速度降低（2× 为 0.8 倍，3× 为 0.65 倍）。</p>
     <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
     <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
     <button class="btn" id="startBtn">开启陀螺仪并开始</button>
@@ -116,6 +116,7 @@ const BW=320,BH=200;          // biscuit size (world units), same as 长方苏�
 const TARGET_R=16;            // target radius (hole diameter = width/10 at 1×)
 const HOLE_R0=16;             // hole radius at 1×; shrinks as 1/zoom
 const ZOOMS=[1,2,3];
+const ZOOM_SPEED={1:1,2:0.8,3:0.65}; // needle speed multiplier per zoom level
 const LOCK_R=48;              // lock range radius (world units) = 1.5 hole diameters at 1×; fixed, does not change with zoom
 let s0=1;
 const SALT=[...Array(70)].map(()=>({x:(Math.random()-.5)*BW*.9,y:(Math.random()-.5)*BH*.85,r:.8+Math.random()*1.4}));
@@ -180,7 +181,7 @@ function update(dt){
   S.t+=dt;nt+=dt;if(S.msgT>0)S.msgT-=dt;
   const z=zoom();
   if(!S.done){
-    const sp=TUNE.speed/z;                                  // slower when zoomed in
+    const sp=TUNE.speed*ZOOM_SPEED[z];                       // slower when zoomed in
     const gx=tiltAxis(raw.x-base.x,TUNE.invX)*sp,gy=tiltAxis(raw.y-base.y,TUNE.invY)*sp;
     const f=1-Math.exp(-TUNE.follow*dt);
     S.vx+=(gx-S.vx)*f;S.vy+=(gy-S.vy)*f;
@@ -198,7 +199,7 @@ function update(dt){
   // camera: centred at 1×, follows the needle when zoomed in
   const tgt=z===1?{x:0,y:0}:{x:S.nx,y:S.ny};
   const cf=1-Math.exp(-6*dt);S.cam.x+=(tgt.x-S.cam.x)*cf;S.cam.y+=(tgt.y-S.cam.y)*cf;
-  $('hud').innerHTML=`放大 <b>${z}×</b> · 速度 ${(100/z).toFixed(0)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
+  $('hud').innerHTML=`放大 <b>${z}×</b> · 速度 ${Math.round(ZOOM_SPEED[z]*100)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
   $('tip').textContent=S.done?'':S.lock?'松开「固定」恢复自由移动':'倾斜手机靠近目标，按住「固定」稳住，再「放大」微调';
 }
 
