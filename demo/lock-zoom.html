@@ -116,7 +116,7 @@ const BW=320,BH=200;          // biscuit size (world units), same as 长方苏�
 const TARGET_R=16;            // target radius (hole diameter = width/10 at 1×)
 const HOLE_R0=16;             // hole radius at 1×; shrinks as 1/zoom
 const ZOOMS=[1,2,3];
-const LOCK_HOLES=1.5;         // lock range radius = 1.5 hole diameters (at current zoom)
+const LOCK_R=48;              // lock range radius (world units) = 1.5 hole diameters at 1×; fixed, does not change with zoom
 let s0=1;
 const SALT=[...Array(70)].map(()=>({x:(Math.random()-.5)*BW*.9,y:(Math.random()-.5)*BH*.85,r:.8+Math.random()*1.4}));
 
@@ -132,7 +132,6 @@ function newRound(){
 }
 function zoom(){return ZOOMS[S?S.zi:0]}
 function holeR(){return HOLE_R0/zoom()}
-function lockR(){return LOCK_HOLES*2*holeR()}
 function flash(m,t){if(S){S.msg=m;S.msgT=t||1.2}}
 function syncZoom(){$('zoomB').innerHTML='放大<br>'+zoom()+'×'}
 
@@ -140,12 +139,11 @@ function syncZoom(){$('zoomB').innerHTML='放大<br>'+zoom()+'×'}
 const lockB=$('lockB');let lockId=null;
 lockB.addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;lockId=e.pointerId;
   try{lockB.setPointerCapture(e.pointerId)}catch(_){}
-  S.lock={x:S.nx,y:S.ny,r:lockR()};lockB.classList.add('on');buzz(12)});
+  S.lock={x:S.nx,y:S.ny,r:LOCK_R};lockB.classList.add('on');buzz(12)});
 function lockUp(e){if(e.pointerId!==lockId)return;lockId=null;if(S)S.lock=null;lockB.classList.remove('on')}
 lockB.addEventListener('pointerup',lockUp);lockB.addEventListener('pointercancel',lockUp);
 $('zoomB').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;
   S.zi=(S.zi+1)%ZOOMS.length;syncZoom();
-  if(S.lock)S.lock.r=lockR();      // lock range follows the hole size
   buzz(10)});
 $('punch').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;doPunch()});
 ['lockB','zoomB','punch'].forEach(id=>$(id).addEventListener('contextmenu',e=>e.preventDefault()));
