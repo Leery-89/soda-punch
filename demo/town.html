@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>奶龙小镇 demo</title>
+<style>
+  html,body{margin:0;height:100%;background:#1b1430;color:#fff8e6;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+  #hud{position:fixed;left:8px;right:8px;top:calc(6px + env(safe-area-inset-top));display:flex;gap:6px;flex-wrap:wrap;pointer-events:none;z-index:2}
+  .chip{background:#2b1f45;border:3px solid #0e0a18;box-shadow:inset -3px -3px 0 #1d1530,inset 3px 3px 0 #4a3a6e;padding:3px 8px;font-size:13px;font-weight:800}
+  .chip b{color:#ffd23f}
+  #edict{flex-basis:100%;font-size:12px;color:#ffe9a8}
+  .px{background:#ffd23f;color:#3a2a00;border:3px solid #0e0a18;box-shadow:inset -4px -4px 0 #c99a10,inset 4px 4px 0 #fff2b0;padding:9px 16px;font-size:16px;font-weight:900;font-family:inherit;cursor:pointer}
+  .px:active{transform:translateY(2px)}
+  .px.gray{background:#8d86a3;color:#1b1430;box-shadow:inset -4px -4px 0 #5f5875,inset 4px 4px 0 #c9c3dc}
+  .px.blue{background:#5aa9ff;color:#0b2140;box-shadow:inset -4px -4px 0 #2f6fc0,inset 4px 4px 0 #bfe0ff}
+  .px[disabled]{opacity:.45}
+  .panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d0818c0;z-index:5;padding:16px;box-sizing:border-box}
+  .card{width:min(100%,440px);max-height:100%;overflow:auto;background:#2b1f45;border:4px solid #0e0a18;box-shadow:inset -5px -5px 0 #1d1530,inset 5px 5px 0 #4a3a6e;padding:16px;text-align:center;line-height:1.55;box-sizing:border-box}
+  .card h2{margin:0 0 6px;color:#ffd23f;font-size:20px}
+  .card p{margin:6px 0;font-size:14px;color:#e6dcf5;text-align:left}
+  .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  .up{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1d1530;padding:8px;margin:6px 0;text-align:left;font-size:13px}
+  .up b{color:#ffd23f}
+  .big{font-size:56px;line-height:1.1;margin:6px 0}
+  .ledger{width:100%;font-size:14px;border-collapse:collapse;margin:6px 0}
+  .ledger td{padding:3px 4px;border-bottom:2px dashed #4a3a6e}.ledger td:last-child{text-align:right}
+  .bubble{display:inline-block;background:#fff8e6;color:#2b1f45;border:3px solid #0e0a18;padding:8px 12px;font-weight:800;font-size:15px;margin:6px 0}
+  .pad{position:fixed;border:3px solid #0e0a18;font-weight:900;font-family:inherit;touch-action:none;-webkit-tap-highlight-color:transparent;z-index:3;width:84px;height:84px;font-size:18px}
+  #lockB{left:calc(16px + env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));background:#5aa9ff;color:#0b2140;box-shadow:inset -5px -5px 0 #2f6fc0,inset 5px 5px 0 #bfe0ff}
+  #lockB.on{background:#bfe0ff}
+  #zoomB{right:calc(112px + env(safe-area-inset-right));bottom:calc(28px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:14px;background:#4a3a6e;color:#ffd23f;box-shadow:inset -4px -4px 0 #2b1f45,inset 4px 4px 0 #6d5a96}
+  #punchB{right:calc(16px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));background:#ffd23f;color:#3a2a00;box-shadow:inset -5px -5px 0 #c99a10,inset 5px 5px 0 #fff2b0}
+  #punchB:active,#zoomB:active{transform:translateY(2px)}
+  #gameTop{position:fixed;right:8px;top:calc(6px + env(safe-area-inset-top));display:flex;gap:6px;z-index:3}
+  #gameTop button{font-size:12px;padding:5px 8px}
+  #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:22px;font-weight:900;color:#ffd23f;text-shadow:3px 3px 0 #0e0a18;pointer-events:none;z-index:6;opacity:0;transition:opacity .2s;white-space:nowrap}
+  #tip{position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:12px;color:#d9cdf0;text-shadow:2px 2px 0 #0e0a18;pointer-events:none;z-index:2;text-align:center;width:min(70vw,460px)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <span class="chip">第 <b id="hDay">1</b> 天</span>
+  <span class="chip">金币 <b id="hCoin">0</b></span>
+  <span class="chip">口碑 <b id="hRep">0</b></span>
+  <span class="chip" id="edict"></span>
+</div>
+<div id="tip"></div>
+<div id="toast"></div>
+
+<div id="gameUI" class="hidden">
+  <div id="gameTop"><button class="px gray" id="calB">重新校准</button><button class="px gray" id="giveupB">交货</button></div>
+  <button id="lockB" class="pad">固定</button>
+  <button id="zoomB" class="pad hidden">放大<br>1×</button>
+  <button id="punchB" class="pad">打孔</button>
+</div>
+
+<div class="panel" id="panel"><div class="card" id="card"></div></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const lc=document.createElement('canvas'),lx=lc.getContext('2d');
+let S=3,LW=200,LH=120,DPR=1;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  cv.width=innerWidth*DPR;cv.height=innerHeight*DPR;
+  S=Math.max(2,Math.floor(Math.min(innerWidth,innerHeight)/120));
+  LW=Math.ceil(innerWidth/S);LH=Math.ceil(innerHeight/S);
+  lc.width=LW;lc.height=LH;
+  layoutTown();
+}
+addEventListener('resize',resize);
+
+// ---------- save ----------
+const SHOPS={
+  home:{name:'主角家',desc:'十字架神台：祈祷让上帝改造升级'},
+  biscuit:{name:'饼干店',desc:'给苏打饼干打孔，接定制单',base:20},
+  hair:{name:'植发店',desc:'在头皮上打又小又密的孔',base:35,price:150},
+  tattoo:{name:'纹身店',desc:'沿图案一针一针扎出纹身',base:50,price:250},
+};
+const UPS=[
+  {k:'wrist',name:'钢铁手腕',eff:'手抖 −35%',cost:[80,180]},
+  {k:'zoom',name:'高倍放大镜',eff:'解锁放大键：放大后针头变慢、看得更清',cost:[120,300]},
+  {k:'night',name:'夜猫子基因',eff:'每天多来 1 位客人',cost:[60,140]},
+];
+const EDICTS=[
+  {t:'今天扎出一次「超赞」',r:30,ok:d=>d.best>=4},
+  {t:'今天不许有客人生气',r:20,ok:d=>d.orders>0&&d.angry===0},
+  {t:'今天接满 3 单',r:15,ok:d=>d.orders>=3},
+  {t:'今天赚到 80 金币',r:25,ok:d=>d.rev>=80},
+];
+const DEF={day:1,coins:50,rep:0,open:{home:1,biscuit:1,hair:0,tattoo:0},up:{wrist:0,zoom:0,night:0},edict:0,opened:false};
+let G=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongTown')||'null');if(s)return Object.assign({},DEF,s)}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
+let D={orders:0,rev:0,angry:0,best:0,tips:0};
+function save(){try{localStorage.setItem('nailongTown',JSON.stringify(G))}catch(e){}}
+function hud(){$('hDay').textContent=G.day;$('hCoin').textContent=G.coins;$('hRep').textContent=G.rep;
+  const e=EDICTS[G.edict];$('edict').textContent='✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）'}
+function toast(t,s=1.2){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,s*1000)}
+
+// ---------- pixel helpers ----------
+function R(x,y,w,h,c){lx.fillStyle=c;lx.fillRect(Math.round(x),Math.round(y),w,h)}
+function nailong(x,y,mood=0,t=0,scale=1){ // x,y = feet center
+  const s=scale,b=Math.round(Math.sin(t*10)*(mood===2?1:0));
+  const P=(px,py,w,h,c)=>R(x+px*s,y+(py+b)*s,w*s,h*s,c);
+  P(-6,-12,12,11,'#ffd23f');P(-7,-10,1,8,'#ffd23f');P(6,-10,1,8,'#ffd23f');P(-5,-13,10,1,'#ffd23f');
+  P(-6,-2,12,1,'#e0a800');P(-4,-1,3,1,'#e0a800');P(1,-1,3,1,'#e0a800');
+  P(-3,-9,8,6,'#fff2c0');
+  // needle on head
+  P(0,-19,1,6,'#c9d2e0');P(-1,-15,3,2,'#7fb0ff');P(0,-20,1,1,'#ffffff');
+  if(mood===1){P(-4,-10,2,1,'#2b1f45');P(2,-10,2,1,'#2b1f45');P(-2,-6,4,2,'#c4473a');P(-1,-6,2,1,'#ff8a8a')}
+  else{P(-4,-10,2,2,'#2b1f45');P(2,-10,2,2,'#2b1f45');P(-1,-6,2,1,'#2b1f45');P(-6,-7,2,1,'#ff9aa8');P(4,-7,2,1,'#ff9aa8')}
+}
+
+// ---------- town ----------
+let B=[],me={x:30,y:80,tx:30,ty:80,goal:null,face:1},townT=0,scene='town';
+function layoutTown(){
+  const keys=['home','biscuit','hair','tattoo'];
+  const two=LW<170,rows=two?2:1,per=two?2:4;
+  B=keys.map((k,i)=>{const r=Math.floor(i/per),c=i%per;
+    const by=two?(r===0?LH*0.46:LH*0.82):LH*0.66;
+    return{k,x:Math.round(LW*(c+0.5)/per),y:Math.round(by),w:38,h:30}});
+  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+8}
+}
+function building(b){
+  const {k,x,y}=b,w=b.w,h=b.h,l=x-w/2,top=y-h,locked=!G.open[k];
+  const pal={home:['#f2e3c6','#c4473a','#8a2a22'],biscuit:['#ffe3b0','#ffd23f','#e0a800'],hair:['#d9ecff','#5aa9ff','#2f6fc0'],tattoo:['#5b4680','#ff5fa2','#b0306e']}[k];
+  R(l+2,y,w,3,'#0002');
+  R(l,top,w,h,pal[0]);R(l,top,w,1,'#fff6');R(l+w-2,top,2,h,'#0002');
+  for(let i=0;i<7;i++)R(l-3+i*1.5,top-2-i*2,w+6-i*3,2,pal[i%2?1:2]);
+  R(x-3,y-11,7,11,'#5a3b22');R(x+2,y-6,1,1,'#ffd23f');
+  R(l+4,top+6,8,7,'#9fd8ff');R(l+4,top+9,8,1,'#fff8');R(l+w-12,top+6,8,7,'#9fd8ff');R(l+w-12,top+9,8,1,'#fff8');
+  if(k==='home'){R(x-1,top-22,2,9,'#ffd23f');R(x-4,top-19,8,2,'#ffd23f')}
+  if(k==='biscuit'){for(let i=0;i<w;i+=4)R(l+i,top,2,4,'#fff');R(x-8,top-9,16,7,'#e8b46a');for(let i=0;i<3;i++)R(x-5+i*4,top-7,1,1,'#7a4a1a'),R(x-5+i*4,top-4,1,1,'#7a4a1a')}
+  if(k==='hair'){for(let i=0;i<12;i++)R(l+1,top+2+i,3,1,['#c4473a','#fff','#2f6fc0'][(i+Math.floor(townT*6))%3]);R(x-7,top-10,14,7,'#fff8e6');R(x-5,top-8,10,1,'#2b1f45');for(let i=0;i<5;i++)R(x-5+i*2,top-7,1,3,'#2b1f45')}
+  if(k==='tattoo'){const on=Math.sin(townT*5)>-0.3;const c=on?'#ff5fa2':'#7a3a5a';R(x-4,top-9,3,2,c);R(x+1,top-9,3,2,c);R(x-5,top-8,10,3,c);R(x-3,top-5,6,2,c);R(x-1,top-3,2,1,c)}
+  if(locked){lx.fillStyle='#1b1430a0';lx.fillRect(l-3,top-22,w+6,h+22);R(x-3,y-18,6,5,'#ffd23f');R(x-2,y-21,1,3,'#ffd23f');R(x+1,y-21,1,3,'#ffd23f');R(x-2,y-22,4,1,'#ffd23f');R(x,y-16,1,2,'#3a2a00')}
+}
+function drawTown(dt){
+  townT+=dt;
+  // sky with pixel bands
+  const sky=['#7ec8ff','#8fd1ff','#a3dbff','#b9e5ff','#d0eeff'];
+  const hz=Math.round(LH*0.36);
+  for(let i=0;i<5;i++)R(0,Math.round(hz*i/5),LW,Math.ceil(hz/5)+1,sky[i]);
+  R(LW-26,8,10,10,'#fff4a8');R(LW-27,10,12,6,'#fff4a8');R(LW-24,7,6,12,'#fff4a8');
+  for(let i=0;i<3;i++){const cx=((townT*4+i*80)%(LW+40))-20,cy=10+i*7;R(cx,cy,16,4,'#fff');R(cx+4,cy-3,8,3,'#fff')}
+  R(0,hz,LW,LH-hz,'#6cc45a');
+  for(let y=hz;y<LH;y+=6)for(let x=(y/6%2)*5;x<LW;x+=10)R(x,y,1,1,'#58ad48');
+  // hills
+  for(let x=0;x<LW;x+=2){const h=6+Math.round(4*Math.sin(x*0.07)+3*Math.sin(x*0.19));R(x,hz-h,2,h,'#58ad48')}
+  // roads under each row
+  const rowYs=[...new Set(B.map(b=>b.y))];
+  rowYs.forEach(y=>{R(0,y+2,LW,9,'#c9b48a');for(let x=0;x<LW;x+=8)R(x,y+6,4,1,'#e8dab8')});
+  // trees
+  for(let x=6;x<LW;x+=Math.max(30,Math.round(LW/5))){const y=rowYs[0]-34;if(B.some(b=>Math.abs(b.x-x)<26))continue;R(x,y+8,3,8,'#7a4a1a');R(x-5,y,13,9,'#3f9b3a');R(x-3,y-3,9,4,'#3f9b3a')}
+  B.forEach(building);
+  // nailong walking
+  const dx=me.tx-me.x,dy=me.ty-me.y,d=Math.hypot(dx,dy),sp=70*dt;
+  if(d>sp){me.x+=dx/d*sp;me.y+=dy/d*sp;if(Math.abs(dx)>0.5)me.face=Math.sign(dx)}
+  else{me.x=me.tx;me.y=me.ty;if(me.goal){const g=me.goal;me.goal=null;enterShop(g)}}
+  nailong(Math.round(me.x),Math.round(me.y),0,d>sp?townT:0);
+}
+function townLabels(){
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+  const fs=Math.max(11,Math.round(S*4.2));
+  ctx.font=`900 ${fs*DPR}px -apple-system,"PingFang SC",sans-serif`;
+  B.forEach(b=>{const t=SHOPS[b.k].name+(G.open[b.k]?'':` · ${SHOPS[b.k].price}金币`);
+    const x=b.x*S*DPR,y=(b.y+12)*S*DPR;
+    ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,x,y);ctx.fillStyle=G.open[b.k]?'#fff8e6':'#ffd23f';ctx.fillText(t,x,y)});
+  ctx.restore();
+}
+cv.addEventListener('pointerdown',e=>{
+  if(scene!=='town'||!$('panel').classList.contains('hidden'))return;
+  const x=e.clientX/S,y=e.clientY/S;
+  const b=B.find(b=>x>b.x-b.w/2-4&&x<b.x+b.w/2+4&&y>b.y-b.h-24&&y<b.y+18);
+  if(b){me.tx=b.x;me.ty=b.y+8;me.goal=b.k}
+});
+
+// ---------- panels ----------
+function show(html){$('card').innerHTML=html;$('panel').classList.remove('hidden')}
+function hide(){$('panel').classList.add('hidden')}
+function bind(id,fn){const el=$(id);if(el)el.onclick=fn}
+function welcome(){
+  show(`<h2>奶龙小镇 · 可浏览 demo</h2>
+  <p>2078 年，上帝说：<b>苏打饼干一定要有孔。</b>你是针头奶龙，替上帝给小镇打孔。</p>
+  <p>点地图上的建筑，奶龙会走过去。<b>饼干店</b>接单打孔赚金币；<b>主角家</b>的神台可以祈祷升级；攒钱开<b>植发店</b>和<b>纹身店</b>。一天只开一家店，打烊后出账本。</p>
+  <p>打孔沿用核心玩法：针头只靠<b>倾斜手机</b>移动，左手「固定」，右手「打孔」。电脑上用方向键。</p>
+  <div class="row"><button class="px" id="goB">进入小镇</button></div>
+  <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，具体以 GAMEPLAY.md 为准。</p>`);
+  bind('goB',hide);
+}
+function enterShop(k){
+  if(k==='home')return homePanel();
+  if(!G.open[k]){
+    const p=SHOPS[k].price;
+    show(`<h2>${SHOPS[k].name}（未开张）</h2><p>${SHOPS[k].desc}。</p><p>正式版里要先打完这家店的一章（约 5 关，最后一关上帝验收）才能开张；demo 里直接花金币开。</p>
+      <div class="row"><button class="px" id="buyB" ${G.coins<p?'disabled':''}>花 ${p} 金币开张</button><button class="px gray" id="xB">走了</button></div>`);
+    bind('buyB',()=>{G.coins-=p;G.open[k]=1;save();hud();toast(SHOPS[k].name+' 开张！');enterShop(k)});bind('xB',hide);return;
+  }
+  if(G.opened){show(`<h2>${SHOPS[k].name}</h2><p>今天已经开过店了，一天只开一家。回<b>主角家</b>睡觉，明天再来。</p><div class="row"><button class="px gray" id="xB">好</button></div>`);bind('xB',hide);return}
+  show(`<h2>${SHOPS[k].name}</h2><p>${SHOPS[k].desc}。</p><p>今天会来 <b>${3+G.up.night}</b> 位客人，每单当场打孔、当场交货。</p>
+    <div class="row"><button class="px" id="openB">开门营业</button><button class="px gray" id="xB">再想想</button></div>`);
+  bind('openB',()=>{G.opened=true;save();startDay(k)});bind('xB',hide);
+}
+function homePanel(){
+  const ups=UPS.map(u=>{const lv=G.up[u.k],c=u.cost[lv];
+    return `<div class="up"><div><b>${u.name}</b> Lv${lv}<br>${u.eff}</div>${c==null?'<span>满级</span>':`<button class="px blue" data-u="${u.k}" ${G.coins<c?'disabled':''}>${c} 金币</button>`}</div>`}).join('');
+  show(`<h2>主角家 · 十字架神台</h2><p>跪在神台前祈祷，上帝会对针头奶龙动手改造。</p>${ups}
+    <div class="row"><button class="px gray" id="sleepB">${G.opened?'睡觉，进入下一天':'出门'}</button></div>`);
+  document.querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>{
+    const u=UPS.find(u=>u.k===el.dataset.u),c=u.cost[G.up[u.k]];if(G.coins<c)return;
+    G.coins-=c;G.up[u.k]++;save();hud();
+    const lines=['上帝：准了。','上帝：这个改造不退不换。','上帝：去打孔吧，孩子。','上帝：别问，问就是旨意。'];
+    toast('✝ '+lines[Math.floor(Math.random()*lines.length)],1.6);homePanel()});
+  bind('sleepB',()=>{if(G.opened)nextDay();else hide()});
+}
+function nextDay(){G.day++;G.opened=false;G.edict=(G.edict+1+Math.floor(Math.random()*(EDICTS.length-1)))%EDICTS.length;D={orders:0,rev:0,angry:0,best:0,tips:0};save();hud();hide();toast('第 '+G.day+' 天 · 早上好',1.4)}
+
+// ---------- a business day ----------
+let shop=null,queue=[];
+const NAMES=['路过的奶龙','隔壁老奶龙','穿西装的奶龙','健身奶龙','奶龙小学生','神秘收藏家'];
+const HOLES=['圆','星','心','方'];
+function startDay(k){
+  shop=k;queue=[];
+  const n=3+G.up.night;
+  for(let i=0;i<n;i++){
+    const custom=k==='biscuit'?i===1||Math.random()<0.25:Math.random()<0.3;
+    queue.push({who:NAMES[Math.floor(Math.random()*NAMES.length)],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)]});
+  }
+  nextCustomer();
+}
+function orderText(o){
+  if(shop==='biscuit')return o.custom?`定制：全部扎${o.hole}形孔，要 ★★★，明天我来拿！`:'来一块苏打饼干，孔要扎正哦。';
+  if(shop==='hair')return o.custom?'定制：发际线往前挪 2 厘米，一根都不能歪。':'帮我种点头发，秃得发亮了。';
+  return o.custom?'定制：纹一颗心，要和上帝的旨意一样圆满。':'随便纹个爱心吧。';
+}
+function nextCustomer(){
+  if(!queue.length)return closeShop();
+  const o=queue[0];
+  show(`<h2>${SHOPS[shop].name} · 还有 ${queue.length} 位</h2>
+    <canvas id="cust" width="48" height="40" style="width:144px;height:120px;image-rendering:pixelated"></canvas><br>
+    <span class="bubble">${o.who}：${orderText(o)}</span>
+    <p>${o.custom?'<b>定制单</b>：做得好付 3 倍价，做砸了可能一分不给。':'普通单：按做得好坏付钱。'}</p>
+    <div class="row"><button class="px" id="takeB">接单开扎</button></div>`);
+  drawCust($('cust'),0);
+  bind('takeB',()=>startPunch(o));
+}
+function drawCust(c,mood){ // reuse the sprite helper on a small canvas
+  const t2=c.getContext('2d');t2.clearRect(0,0,48,40);
+  const keep=R;R=(x,y,w,h,col)=>{t2.fillStyle=col;t2.fillRect(Math.round(x),Math.round(y),w,h)};
+  t2.fillStyle='#1d1530';t2.fillRect(0,32,48,8);
+  nailong(24,34,mood,performance.now()/1000,1.4);R=keep;}
+function closeShop(){
+  const mat=D.orders*5,rent=15,prof=D.rev-mat-rent;
+  const e=EDICTS[G.edict],ok=e.ok(D),bonus=ok?e.r:0;
+  G.coins+=bonus-mat-rent;save();hud();
+  show(`<h2>打烊 · 第 ${G.day} 天账本</h2><table class="ledger">
+    <tr><td>营业额（${D.orders} 单）</td><td>+${D.rev}</td></tr><tr><td>其中小费</td><td>${D.tips}</td></tr>
+    <tr><td>原料（每单 5）</td><td>−${mat}</td></tr><tr><td>房租水电</td><td>−${rent}</td></tr>
+    <tr><td>上帝旨意：${e.t}</td><td>${ok?'+'+bonus+' ✓':'没完成'}</td></tr>
+    <tr><td><b>今日利润</b></td><td><b>${prof+bonus}</b></td></tr></table>
+    <p>现在有 <b>${G.coins}</b> 金币。回主角家祈祷升级，或者攒钱开新店。</p>
+    <div class="row"><button class="px" id="homeB">回家</button></div>`);
+  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+8;me.goal='home'});
+}
+
+// ---------- feedback (已定表情) ----------
+const TIERS=[
+  {name:'生气',emo:'😡👎',pay:0,rep:-3},
+  {name:'嘲笑',emo:'🤣👉🏻🤡',pay:1,rep:-1},
+  {name:'还行',emo:'😋👍',pay:1,rep:0},
+  {name:'很好',emo:'✋😇🤚',pay:1,tip:0.2,rep:1},
+  {name:'超赞',emo:'奶龙大笑',pay:1,tip:0.5,rep:2},
+];
+function feedback(o,res){
+  let t;const {missed,wrong,acc}=res;
+  if(missed===0&&wrong===0&&acc>=0.7)t=4;else if(missed===0&&acc>=0.5)t=3;else if(missed===0)t=2;else if(missed<=2)t=1;else t=0;
+  const T=TIERS[t],base=SHOPS[shop].base;
+  let pay=0,tip=0;
+  if(t>0){pay=o.custom&&t>=2?base*3:(o.custom?base:Math.round(base*(t===1?0.5:1)));tip=Math.round(pay*(T.tip||0))}
+  D.orders++;D.rev+=pay+tip;D.tips+=tip;if(t===0)D.angry++;D.best=Math.max(D.best,t);
+  G.coins+=pay+tip;G.rep+=T.rep;save();hud();
+  queue.shift();
+  show(`<h2>客人的反馈：${T.name}</h2>
+    ${t===4?'<canvas id="cust" width="48" height="40" style="width:192px;height:160px;image-rendering:pixelated"></canvas><div style="font-size:26px;font-weight:900;color:#ffd23f">哈哈哈哈哈！</div>':`<div class="big">${T.emo}</div>`}
+    <p>扎中 ${res.hit}/${res.total}，扎歪 ${wrong}，平均准度 ${Math.round(acc*100)}%。</p>
+    <p>${t===0?'客人一分钱没给，口碑 −3。':`收入 ${pay} 金币${tip?`，小费 ${tip}`:''}；口碑 ${T.rep>=0?'+':''}${T.rep}。`}</p>
+    <div class="row"><button class="px" id="nB">${queue.length?'下一位':'打烊'}</button></div>`);
+  if(t===4){const c=$('cust');let n=0;const an=()=>{if(!c.isConnected)return;drawCust(c,1);n++;requestAnimationFrame(an)};an()}
+  bind('nB',nextCustomer);
+}
+
+// ---------- gyro ----------
+let raw={x:0,y:0},base={x:0,y:0},gotTilt=false,listening=false,askedTilt=false;
+function onOri(e){if(e.beta==null||e.gamma==null)return;gotTilt=true;
+  const ang=(screen.orientation&&screen.orientation.angle)??window.orientation??0;let x,y;
+  if(ang===90){x=e.beta;y=-e.gamma}else if(ang===-90||ang===270){x=-e.beta;y=e.gamma}else{x=e.gamma;y=e.beta}
+  raw.x=x;raw.y=y}
+async function enableTilt(){try{
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted')return false}
+  if(!listening){addEventListener('deviceorientation',onOri);listening=true}
+  if(!gotTilt)await new Promise(r=>setTimeout(r,700));return gotTilt}catch(e){return false}}
+function calibrate(){base={x:raw.x,y:raw.y}}
+const TUNE=(()=>{const d={dead:1.5,full:22,curve:1,invX:false,invY:false};try{return Object.assign(d,JSON.parse(localStorage.getItem('sodaTune')||'{}'))}catch(e){return d}})();
+function tiltAxis(v,inv){const a=Math.abs(v)-TUNE.dead;if(a<=0)return 0;const k=Math.min(1,a/Math.max(1,TUNE.full-TUNE.dead));return Math.sign(v)*Math.pow(k,TUNE.curve)*(inv?-1:1)}
+const keys={};addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);
+$('calB').onclick=()=>{calibrate();toast('已校准',0.8)};
+
+// ---------- punching ----------
+let P=null;
+async function startPunch(o){
+  if(!askedTilt){askedTilt=true;await enableTilt()}
+  hide();scene='punch';calibrate();
+  const kind=shop,tg=[];
+  if(kind==='biscuit'){for(let r=0;r<2;r++)for(let c=0;c<3;c++)tg.push({x:-24+c*24,y:-9+r*18,r:5})}
+  else if(kind==='hair'){for(let r=0;r<2;r++)for(let c=0;c<5;c++)tg.push({x:-24+c*12+(r?6:0),y:-14+r*9,r:3})}
+  else{for(let i=0;i<8;i++){const a=i/8*Math.PI*2,x=16*Math.pow(Math.sin(a),3),y=-(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a));tg.push({x:x*1.4,y:y*1.4-2,r:3.5})}}
+  P={o,kind,tg,holes:[],wrong:0,t:0,limit:kind==='tattoo'?25:20,n:{x:-40,y:20},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
+  $('gameUI').classList.remove('hidden');
+  $('zoomB').classList.toggle('hidden',!G.up.zoom);$('zoomB').innerHTML='放大<br>1×';
+  $('tip').textContent=gotTilt?'倾斜手机移动针头，按住「固定」稳住，点「打孔」扎下':'没检测到陀螺仪：电脑上用方向键移动针头（手机请用 https 打开并允许陀螺仪）';
+}
+function lockDown(e){e.preventDefault();if(P)P.lock={x:P.n.x,y:P.n.y};$('lockB').classList.add('on')}
+function lockUp(e){e.preventDefault();if(P)P.lock=null;$('lockB').classList.remove('on')}
+$('lockB').addEventListener('pointerdown',lockDown);$('lockB').addEventListener('pointerup',lockUp);$('lockB').addEventListener('pointercancel',lockUp);$('lockB').addEventListener('pointerleave',lockUp);
+$('zoomB').onclick=()=>{if(!P)return;const max=1+G.up.zoom;P.zoom=P.zoom>=max?1:P.zoom+1;$('zoomB').innerHTML='放大<br>'+P.zoom+'×'};
+$('punchB').addEventListener('pointerdown',e=>{e.preventDefault();punch()});
+$('giveupB').onclick=()=>finishPunch();
+function onObject(x,y){const k=P.kind;
+  if(k==='biscuit')return Math.abs(x)<42&&Math.abs(y)<25;
+  if(k==='hair')return (x*x)/(40*40)+(y+4)*(y+4)/(28*28)<1;
+  return Math.abs(x)<44&&Math.abs(y+2)<30}
+function punch(){
+  if(!P||P.done)return;const {x,y}=P.n;
+  if(!onObject(x,y)){toast('扎到台子上了',0.6);return}
+  let best=null,bd=1e9;P.tg.forEach(t=>{if(t.hit)return;const d=Math.hypot(t.x-x,t.y-y);if(d<bd){bd=d;best=t}});
+  const hole={x,y,ok:false};
+  if(best&&bd<=best.r+1){best.hit=true;best.acc=Math.max(0,1-bd/(best.r+1));hole.ok=true;toast(best.acc>0.85?'完美正中！':best.acc>0.5?'很准':'擦边',0.5)}
+  else{P.wrong++;toast('扎歪了',0.6);if(navigator.vibrate)navigator.vibrate([40,40,40])}
+  P.holes.push(hole);
+  if(P.tg.every(t=>t.hit))setTimeout(finishPunch,350);
+}
+function finishPunch(){
+  if(!P||P.done)return;P.done=true;
+  const hit=P.tg.filter(t=>t.hit),acc=hit.length?hit.reduce((s,t)=>s+t.acc,0)/hit.length:0;
+  const res={hit:hit.length,total:P.tg.length,missed:P.tg.length-hit.length,wrong:P.wrong,acc};
+  $('gameUI').classList.add('hidden');$('tip').textContent='';$('lockB').classList.remove('on');
+  const o=P.o;scene='town';P=null;feedback(o,res);
+}
+function drawPunch(dt){
+  P.t+=dt;if(P.t>=P.limit)finishPunch();if(!P)return;
+  // move needle
+  let ax=tiltAxis(raw.x-base.x,TUNE.invX),ay=tiltAxis(raw.y-base.y,TUNE.invY);
+  if(keys.ArrowLeft)ax=-1;if(keys.ArrowRight)ax=1;if(keys.ArrowUp)ay=-1;if(keys.ArrowDown)ay=1;
+  const spd=55*(P.zoom===1?1:P.zoom===2?0.8:0.65);
+  const k=Math.min(1,dt*8);P.v.x+=(ax*spd-P.v.x)*k;P.v.y+=(ay*spd-P.v.y)*k;
+  const tr=2.2*(1-0.35*G.up.wrist)/Math.sqrt(P.zoom);
+  P.trem.x+=(Math.random()-0.5)*tr*dt*30;P.trem.y+=(Math.random()-0.5)*tr*dt*30;P.trem.x*=0.92;P.trem.y*=0.92;
+  P.n.x+=P.v.x*dt+P.trem.x*dt*6;P.n.y+=P.v.y*dt+P.trem.y*dt*6;
+  if(P.lock){const dx=P.n.x-P.lock.x,dy=P.n.y-P.lock.y,d=Math.hypot(dx,dy),m=5;if(d>m){P.n.x=P.lock.x+dx/d*m;P.n.y=P.lock.y+dy/d*m}}
+  P.n.x=Math.max(-60,Math.min(60,P.n.x));P.n.y=Math.max(-40,Math.min(40,P.n.y));
+  // scene
+  const z=P.zoom,cx=LW/2,cy=LH/2,s=Math.max(1,Math.min(LW/120,LH/80))*z;
+  const ox=z>1?-P.n.x*s:0,oy=z>1?-P.n.y*s:0;
+  const W=(x,y)=>[cx+ox+x*s,cy+oy+y*s];
+  const bg={biscuit:['#3a2b52','#46356a'],hair:['#2f4a5e','#385a70'],tattoo:['#2a1f3a','#352848']}[P.kind];
+  for(let y=0;y<LH;y+=8)for(let x=0;x<LW;x+=8)R(x,y,8,8,((x+y)/8)%2?bg[0]:bg[1]);
+  const box=(x,y,w,h,c)=>{const [a,b]=W(x,y);R(a,b,Math.ceil(w*s),Math.ceil(h*s),c)};
+  if(P.kind==='biscuit'){box(-44,-27,88,54,'#b07a3a');box(-42,-25,84,50,'#e8b46a');box(-42,-25,84,3,'#f6cf8a');
+    for(let i=0;i<14;i++){const x=-38+((i*37)%76),y=-21+((i*23)%42);box(x,y,1,1,'#fff8e6')}}
+  else if(P.kind==='hair'){for(let y=-32;y<=24;y++){const w=40*Math.sqrt(Math.max(0,1-(y+4)*(y+4)/(28*28)));box(-w,y,w*2,1,y<-24?'#f2b8a0':'#f7c9b2')}
+    box(-30,8,8,3,'#5a3b22');box(22,8,8,3,'#5a3b22');}
+  else{box(-46,-32,92,62,'#d99a74');box(-46,-32,92,3,'#e8b08c');box(-46,27,92,3,'#b87a58')}
+  // targets
+  P.tg.forEach(t=>{if(t.hit)return;const [a,b]=W(t.x,t.y),r=t.r*s;
+    lx.fillStyle='#ffffffcc';for(let i=0;i<16;i+=2){const an=i/16*Math.PI*2+P.t;lx.fillRect(Math.round(a+Math.cos(an)*r),Math.round(b+Math.sin(an)*r),Math.max(1,s/2|0),Math.max(1,s/2|0))}
+    if(P.kind==='biscuit'&&P.o.custom){lx.fillStyle='#ffd23f';lx.font=`${Math.max(6,Math.round(r))}px sans-serif`;lx.textAlign='center';lx.textBaseline='middle';lx.fillText(P.o.hole,a,b)}});
+  // holes
+  if(P.kind==='tattoo'){const ok=P.holes.filter(h=>h.ok);lx.strokeStyle='#2b1f45';lx.lineWidth=Math.max(1,s*0.8);lx.beginPath();ok.forEach((h,i)=>{const [a,b]=W(h.x,h.y);i?lx.lineTo(a,b):lx.moveTo(a,b)});lx.stroke()}
+  P.holes.forEach(h=>{const [a,b]=W(h.x,h.y),r=Math.max(1,Math.round(1.6*s));
+    if(P.kind==='hair'&&h.ok){R(a-r/2,b-r/2,r,r,'#5a3b22');R(a-1,b-4*s,Math.max(1,s/2|0),4*s,'#3a2414');R(a+s,b-3*s,Math.max(1,s/2|0),3*s,'#3a2414')}
+    else R(a-r/2,b-r/2,r,r,h.ok?(P.kind==='tattoo'?'#2b1f45':'#6a3d12'):'#c4473a')});
+  // needle
+  const [na,nb]=W(P.n.x,P.n.y),nr=Math.max(3,Math.round(1.6*s));
+  if(P.lock){const [la,lb]=W(P.lock.x,P.lock.y);lx.strokeStyle='#7fb0ff88';lx.lineWidth=1;lx.beginPath();lx.arc(la,lb,5*s,0,7);lx.stroke()}
+  lx.strokeStyle='#ffd23f';lx.lineWidth=Math.max(1,s/2|0);lx.beginPath();lx.arc(Math.round(na),Math.round(nb),nr,0,7);lx.stroke();
+  R(na,nb,1,1,'#fff');
+  R(na+nr,nb-nr-14*Math.min(2,s/2),Math.max(2,s),14*Math.min(2,s/2),'#c9d2e0');
+}
+function punchHud(){
+  if(!P)return;ctx.save();const fs=14*DPR;ctx.font=`900 ${fs}px -apple-system,"PingFang SC",sans-serif`;ctx.textBaseline='top';
+  const left=Math.ceil(P.limit-P.t),done=P.tg.filter(t=>t.hit).length;
+  const t=`${SHOPS[P.kind].name}${P.o.custom?' · 定制单':''}   剩 ${left} 秒   ${done}/${P.tg.length}   扎歪 ${P.wrong}`;
+  ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,10*DPR,10*DPR);ctx.fillStyle='#fff8e6';ctx.fillText(t,10*DPR,10*DPR);ctx.restore();
+}
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  lx.clearRect(0,0,LW,LH);
+  if(scene==='punch'&&P)drawPunch(dt);else drawTown(dt);
+  ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.drawImage(lc,0,0,LW*S*DPR,LH*S*DPR);
+  $('hud').style.display=scene==='punch'?'none':'flex';
+  if(scene==='town')townLabels();else punchHud();
+  requestAnimationFrame(frame);
+}
+resize();hud();welcome();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
