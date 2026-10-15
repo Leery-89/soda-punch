@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>固定 + 放大 单孔 demo</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d1626;color:#eef3ff;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #hud{position:fixed;left:10px;top:calc(8px + env(safe-area-inset-top));font-size:13px;line-height:1.5;pointer-events:none;text-shadow:0 1px 2px #000}
+  #hud b{color:#ffd23f}
+  #tip{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:12px;color:#b9c6e0;pointer-events:none;text-align:center;width:min(60vw,420px)}
+  .pad{position:fixed;border-radius:50%;border:4px solid #fff3;font-weight:800;touch-action:none;-webkit-tap-highlight-color:transparent}
+  #lockB{left:calc(18px + env(safe-area-inset-left));bottom:calc(26px + env(safe-area-inset-bottom));width:96px;height:96px;background:#3b82f6;color:#fff;font-size:20px;box-shadow:0 6px 0 #1e4fa8}
+  #lockB.on{background:#7fb0ff;transform:translateY(4px);box-shadow:0 2px 0 #1e4fa8}
+  #punch{right:calc(18px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));width:96px;height:96px;background:#ffd23f;color:#3a2a00;font-size:20px;box-shadow:0 6px 0 #a8820f}
+  #punch:active{transform:translateY(4px);box-shadow:0 2px 0 #a8820f}
+  #zoomB{right:calc(128px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:68px;height:68px;background:#2a3550;color:#ffd23f;font-size:15px;line-height:1.15;box-shadow:0 5px 0 #161d2e}
+  #zoomB:active{transform:translateY(3px);box-shadow:0 2px 0 #161d2e}
+  .btn{background:#ffd23f;color:#3a2a00;border:0;border-radius:12px;padding:12px 22px;font-size:17px;font-weight:700}
+  .ghost{background:#ffffff14;color:#eef3ff;border:1px solid #ffffff30;border-radius:10px;padding:6px 10px;font-size:13px}
+  #topR{position:fixed;right:10px;top:calc(8px + env(safe-area-inset-top));display:flex;gap:6px}
+  .panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d1626e8;z-index:5}
+  .card{width:min(88vw,420px);background:#18243a;border:1px solid #ffffff22;border-radius:16px;padding:20px;text-align:center;line-height:1.6}
+  .card h2{margin:0 0 8px;color:#ffd23f}
+  .card p{margin:6px 0;font-size:14px;color:#cdd7ea;text-align:left}
+  .big{font-size:40px;font-weight:800;color:#ffd23f;margin:6px 0}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="topR"><button class="ghost" id="calB">重新校准</button><button class="ghost" id="invX">左右反转</button><button class="ghost" id="invY">上下反转</button></div>
+<div id="tip"></div>
+<button id="lockB" class="pad">固定</button>
+<button id="zoomB" class="pad">放大<br>1×</button>
+<button id="punch" class="pad">打孔</button>
+
+<div class="panel" id="startP">
+  <div class="card">
+    <h2>固定 + 放大 · 单孔 demo</h2>
+    <p>针头只靠<b>倾斜手机</b>移动，手指只按按钮。</p>
+    <p><b>左手「固定」</b>：按住时，针头只能在按下那一刻的位置附近小范围内移动，松开恢复自由。</p>
+    <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干变大、孔变细，陀螺仪移动速度按倍数降低。</p>
+    <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
+    <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
+    <button class="btn" id="startBtn">开启陀螺仪并开始</button>
+    <p id="startMsg" style="color:#ff9b8a"></p>
+  </div>
+</div>
+
+<div class="panel hidden" id="resP">
+  <div class="card">
+    <h2 id="resTitle"></h2>
+    <div class="big" id="resScore"></div>
+    <p id="resDetail" style="text-align:center"></p>
+    <button class="btn" id="againBtn">再来一个</button>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(3,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;s0=Math.min(W*0.82/BW,H*0.62/BH)}
+addEventListener('resize',resize);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+// ---------- tuning (shares the main game's 「调手感」 settings via localStorage) ----------
+const TUNE_DEF={dead:1.5,full:22,speed:210,curve:1,follow:8,tremor:1,invX:false,invY:false};
+const TUNE=(()=>{try{return Object.assign({},TUNE_DEF,JSON.parse(localStorage.getItem('sodaTune')||'{}'))}catch(e){return Object.assign({},TUNE_DEF)}})();
+function saveTune(){try{localStorage.setItem('sodaTune',JSON.stringify(TUNE))}catch(e){}}
+function tiltAxis(v,inv){const a=Math.abs(v)-TUNE.dead;if(a<=0)return 0;const k=Math.min(1,a/Math.max(1,TUNE.full-TUNE.dead));return Math.sign(v)*Math.pow(k,TUNE.curve)*(inv?-1:1)}
+function syncInv(){$('invX').style.color=TUNE.invX?'#ffd23f':'';$('invY').style.color=TUNE.invY?'#ffd23f':''}
+$('invX').onclick=()=>{TUNE.invX=!TUNE.invX;saveTune();syncInv()};
+$('invY').onclick=()=>{TUNE.invY=!TUNE.invY;saveTune();syncInv()};
+syncInv();
+
+// ---------- gyroscope ----------
+let raw={x:0,y:0},base={x:0,y:0},gotTilt=false,listening=false;
+function onOri(e){
+  if(e.beta==null||e.gamma==null)return;
+  gotTilt=true;
+  const ang=(screen.orientation&&screen.orientation.angle)??window.orientation??0;
+  let x,y;
+  if(ang===90){x=e.beta;y=-e.gamma}
+  else if(ang===-90||ang===270){x=-e.beta;y=e.gamma}
+  else{x=e.gamma;y=e.beta}
+  raw.x=x;raw.y=y;
+}
+async function enableTilt(){
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted')return false;
+    }
+    if(!listening){addEventListener('deviceorientation',onOri);listening=true}
+    if(!gotTilt)await new Promise(r=>setTimeout(r,900));
+    return gotTilt;
+  }catch(e){return false}
+}
+function calibrate(){base={x:raw.x,y:raw.y}}
+$('calB').onclick=()=>{calibrate();flash('已校准',0.8)};
+
+// ---------- haptics (same trick as the main game) ----------
+function iosTick(){try{const l=document.createElement('label'),i=document.createElement('input');i.type='checkbox';i.setAttribute('switch','');l.style.display='none';l.appendChild(i);document.head.appendChild(l);l.click();l.remove()}catch(e){}}
+let hapPending=0;
+function flushHaptic(){if(!hapPending)return;const n=Math.min(hapPending,3);hapPending=0;for(let k=0;k<n;k++)iosTick()}
+['touchend','click'].forEach(t=>document.addEventListener(t,flushHaptic,true));
+function buzz(p){if(navigator.vibrate){try{navigator.vibrate(p)}catch(e){};return}hapPending=Math.max(hapPending,Array.isArray(p)?Math.ceil(p.length/2):1);iosTick()}
+
+// ---------- world ----------
+const BW=320,BH=200;          // biscuit size (world units), same as 长方苏打
+const TARGET_R=16;            // target radius (hole diameter = width/10 at 1×)
+const HOLE_R0=16;             // hole radius at 1×; shrinks as 1/zoom
+const ZOOMS=[1,2,3];
+const LOCK_HOLES=1.5;         // lock range radius = 1.5 hole diameters (at current zoom)
+let s0=1;
+const SALT=[...Array(70)].map(()=>({x:(Math.random()-.5)*BW*.9,y:(Math.random()-.5)*BH*.85,r:.8+Math.random()*1.4}));
+
+let S=null;
+function newRound(){
+  S={t:0,
+    tx:(Math.random()-.5)*(BW-70),ty:(Math.random()-.5)*(BH-60),
+    nx:-BW*0.3,ny:BH*0.25,vx:0,vy:0,      // needle (world)
+    zi:S?S.zi:0,cam:{x:0,y:0},
+    lock:null,hole:null,done:false,msg:'',msgT:0};
+  S.cam={x:S.nx,y:S.ny};
+  syncZoom();
+}
+function zoom(){return ZOOMS[S?S.zi:0]}
+function holeR(){return HOLE_R0/zoom()}
+function lockR(){return LOCK_HOLES*2*holeR()}
+function flash(m,t){if(S){S.msg=m;S.msgT=t||1.2}}
+function syncZoom(){$('zoomB').innerHTML='放大<br>'+zoom()+'×'}
+
+// ---------- buttons ----------
+const lockB=$('lockB');let lockId=null;
+lockB.addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;lockId=e.pointerId;
+  try{lockB.setPointerCapture(e.pointerId)}catch(_){}
+  S.lock={x:S.nx,y:S.ny,r:lockR()};lockB.classList.add('on');buzz(12)});
+function lockUp(e){if(e.pointerId!==lockId)return;lockId=null;if(S)S.lock=null;lockB.classList.remove('on')}
+lockB.addEventListener('pointerup',lockUp);lockB.addEventListener('pointercancel',lockUp);
+$('zoomB').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;
+  S.zi=(S.zi+1)%ZOOMS.length;syncZoom();
+  if(S.lock)S.lock.r=lockR();      // lock range follows the hole size
+  buzz(10)});
+$('punch').addEventListener('pointerdown',e=>{e.preventDefault();if(!S||S.done)return;doPunch()});
+['lockB','zoomB','punch'].forEach(id=>$(id).addEventListener('contextmenu',e=>e.preventDefault()));
+
+function doPunch(){
+  const z=zoom(),hr=holeR();
+  const d=Math.hypot(S.nx-S.tx,S.ny-S.ty);
+  const onBiscuit=Math.abs(S.nx)<BW/2&&Math.abs(S.ny)<BH/2;
+  const acc=1-d/TARGET_R;
+  let score=0,title;
+  if(!onBiscuit)title='扎到传送带了';
+  else if(acc<=0)title='扎歪了';
+  else{const pct=d/TARGET_R;title=pct<=.15?'完美正中！':pct<=.4?'很准':pct<=.7?'还行':'擦边';score=Math.round(10+90*acc*acc)}
+  S.hole={x:S.nx,y:S.ny,r:hr};S.done=true;
+  buzz(score>0&&acc>.85?[60,30,60,30,60]:[60]);
+  const detail=`偏差 ${d.toFixed(1)}（目标半径 ${TARGET_R}）<br>打孔时 ${z}× · 孔半径 ${hr.toFixed(1)} · ${S.lock?'固定中':'未固定'}`;
+  setTimeout(()=>{
+    $('resTitle').textContent=title;$('resScore').textContent=score+' 分';$('resDetail').innerHTML=detail;
+    $('resP').classList.remove('hidden');
+  },700);
+}
+$('againBtn').onclick=()=>{$('resP').classList.add('hidden');newRound()};
+$('startBtn').onclick=async()=>{
+  $('startMsg').textContent='正在开启陀螺仪…';
+  const ok=await enableTilt();
+  if(!ok){$('startMsg').textContent='没检测到陀螺仪。请用手机 Safari 或 Chrome 打开（微信里点右上角「在浏览器打开」），iPhone 弹窗时点「允许」。';return}
+  calibrate();$('startP').classList.add('hidden');newRound();
+};
+
+// ---------- update ----------
+let nt=0;
+function update(dt){
+  if(!S)return;
+  S.t+=dt;nt+=dt;if(S.msgT>0)S.msgT-=dt;
+  const z=zoom();
+  if(!S.done){
+    const sp=TUNE.speed/z;                                  // slower when zoomed in
+    const gx=tiltAxis(raw.x-base.x,TUNE.invX)*sp,gy=tiltAxis(raw.y-base.y,TUNE.invY)*sp;
+    const f=1-Math.exp(-TUNE.follow*dt);
+    S.vx+=(gx-S.vx)*f;S.vy+=(gy-S.vy)*f;
+    // hand tremor (world units), weaker when zoomed in, like the main game
+    const tr=5*TUNE.tremor/Math.sqrt(z);
+    const jx=(Math.cos(nt*3.1)*3.1+Math.cos(nt*5.7+1.3)*3.4)*tr*0.25,jy=(Math.cos(nt*2.7+2)*2.7+Math.cos(nt*6.3)*3.8)*tr*0.25;
+    S.nx+=(S.vx+jx)*dt;S.ny+=(S.vy+jy)*dt;
+    S.nx=clamp(S.nx,-BW/2-60,BW/2+60);S.ny=clamp(S.ny,-BH/2-50,BH/2+50);
+    if(S.lock){                                             // stay inside the lock range
+      const L=S.lock,dx=S.nx-L.x,dy=S.ny-L.y,d=Math.hypot(dx,dy);
+      if(d>L.r){S.nx=L.x+dx/d*L.r;S.ny=L.y+dy/d*L.r;
+        const vr=(S.vx*dx+S.vy*dy)/d;if(vr>0){S.vx-=vr*dx/d;S.vy-=vr*dy/d}}
+    }
+  }
+  // camera: centred at 1×, follows the needle when zoomed in
+  const tgt=z===1?{x:0,y:0}:{x:S.nx,y:S.ny};
+  const cf=1-Math.exp(-6*dt);S.cam.x+=(tgt.x-S.cam.x)*cf;S.cam.y+=(tgt.y-S.cam.y)*cf;
+  $('hud').innerHTML=`放大 <b>${z}×</b> · 速度 ${(100/z).toFixed(0)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
+  $('tip').textContent=S.done?'':S.lock?'松开「固定」恢复自由移动':'倾斜手机靠近目标，按住「固定」稳住，再「放大」微调';
+}
+
+// ---------- draw ----------
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0d1626';ctx.fillRect(0,0,W,H);
+  if(!S)return;
+  const z=zoom(),k=s0*z,ox=W/2-S.cam.x*k,oy=H*0.47-S.cam.y*k;
+  ctx.setTransform(DPR*k,0,0,DPR*k,DPR*ox,DPR*oy);
+  // belt
+  ctx.fillStyle='#232a36';ctx.fillRect(-2000,-BH/2-26,4000,BH+52);
+  ctx.strokeStyle='#2f3846';ctx.lineWidth=2/z;
+  for(let x=-1000;x<1000;x+=34){ctx.beginPath();ctx.moveTo(x,-BH/2-26);ctx.lineTo(x,BH/2+26);ctx.stroke()}
+  ctx.fillStyle='#8592a6';ctx.fillRect(-2000,-BH/2-32,4000,6);ctx.fillRect(-2000,BH/2+26,4000,6);
+  // biscuit
+  const g=ctx.createLinearGradient(0,-BH/2,0,BH/2);g.addColorStop(0,'#f6cf7d');g.addColorStop(1,'#d9a24a');
+  ctx.fillStyle=g;rr(-BW/2,-BH/2,BW,BH,14);ctx.fill();
+  ctx.strokeStyle='#b07a2c';ctx.lineWidth=3;ctx.stroke();
+  ctx.strokeStyle='#c8913d66';ctx.lineWidth=2;rr(-BW/2+12,-BH/2+12,BW-24,BH-24,8);ctx.stroke();
+  ctx.fillStyle='#fff7e4cc';for(const s of SALT){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill()}
+  // target
+  ctx.save();ctx.setLineDash([4/z+1,3/z+1]);ctx.strokeStyle='#5a3a10';ctx.lineWidth=1.6/Math.sqrt(z);
+  ctx.beginPath();ctx.arc(S.tx,S.ty,TARGET_R,0,7);ctx.stroke();ctx.restore();
+  ctx.fillStyle='#5a3a1088';ctx.beginPath();ctx.arc(S.tx,S.ty,1.4/Math.sqrt(z),0,7);ctx.fill();
+  if(S.hole){ctx.fillStyle='#2a1a08';ctx.beginPath();ctx.arc(S.hole.x,S.hole.y,S.hole.r,0,7);ctx.fill()}
+  // lock range
+  if(S.lock){ctx.fillStyle='#7fb0ff1f';ctx.strokeStyle='#7fb0ffcc';ctx.lineWidth=2/k;ctx.setLineDash([6/k,4/k]);
+    ctx.beginPath();ctx.arc(S.lock.x,S.lock.y,S.lock.r,0,7);ctx.fill();ctx.stroke();ctx.setLineDash([])}
+  // needle: constant size on screen
+  if(!S.done){
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    const x=ox+S.nx*k,y=oy+S.ny*k,r=HOLE_R0*s0;
+    ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();
+    ctx.strokeStyle='#ffd23faa';ctx.lineWidth=1.2;ctx.beginPath();
+    ctx.moveTo(x-r-6,y);ctx.lineTo(x-r+4,y);ctx.moveTo(x+r-4,y);ctx.lineTo(x+r+6,y);
+    ctx.moveTo(x,y-r-6);ctx.lineTo(x,y-r+4);ctx.moveTo(x,y+r-4);ctx.lineTo(x,y+r+6);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,2,0,7);ctx.fill();
+  }
+  if(S.msgT>0){ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalAlpha=Math.min(1,S.msgT);
+    ctx.fillStyle='#ffd23f';ctx.font='800 20px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(S.msg,W/2,Math.max(70,H*.14));ctx.globalAlpha=1}
+}
+let last=performance.now();
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(loop)}
+resize();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
