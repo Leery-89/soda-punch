@@ -37,24 +37,37 @@
   #punchB:active,#zoomB:active{transform:translateY(2px)}
   #gameTop{position:fixed;right:8px;top:calc(6px + env(safe-area-inset-top));display:flex;gap:6px;z-index:3}
   #gameTop button{font-size:12px;padding:5px 8px}
+  #ratioBox{display:flex;gap:4px;align-items:center}
+  #gameUI.counter #gameTop{top:auto;right:auto;left:calc(8px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));flex-wrap:wrap;max-width:46vw}
+  #gameUI.counter #punchB{right:calc(92px + env(safe-area-inset-right));width:88px;height:88px}
+  #gameUI.counter #lockB{left:auto;right:calc(14px + env(safe-area-inset-right));bottom:calc(64px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:15px}
+  #gameUI.counter #zoomB{right:calc(190px + env(safe-area-inset-right))}
   #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:22px;font-weight:900;color:#ffd23f;text-shadow:3px 3px 0 #0e0a18;pointer-events:none;z-index:6;opacity:0;transition:opacity .2s;white-space:nowrap}
   #tip{position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:12px;color:#d9cdf0;text-shadow:2px 2px 0 #0e0a18;pointer-events:none;z-index:2;text-align:center;width:min(70vw,460px)}
+  #dlg{position:fixed;inset:0;z-index:7}
+  #dlgBox{position:absolute;left:calc(10px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));min-height:26%;background:#fff8e6;color:#2b1f45;border:4px solid #c9b400;box-shadow:0 0 0 3px #0e0a18;padding:30px 18px 14px;box-sizing:border-box}
+  #dlgName{position:absolute;left:10px;top:-20px;background:#fff8e6;border:3px solid #0e0a18;border-radius:20px;padding:4px 22px;font-weight:900;font-size:18px}
+  #dlgText{margin:0;font-size:18px;line-height:1.6;font-weight:700}
+  #dlgMore{position:absolute;right:12px;bottom:6px;font-size:12px;color:#8a7a6a}
+  #pL,#pR{position:absolute;bottom:calc(10px + 26% - 8px);width:min(22vw,180px);image-rendering:pixelated}
+  #pL{left:calc(16px + env(safe-area-inset-left))}#pR{right:calc(16px + env(safe-area-inset-right))}
   .hidden{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hud">
-  <span class="chip">第 <b id="hDay">1</b></span>
+  <span class="chip" style="display:flex;align-items:center;gap:5px"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#fff8e6" stroke="#0e0a18" stroke-width="2.5"/><line id="clkH" x1="10" y1="10" x2="10" y2="6" stroke="#0e0a18" stroke-width="2.2" stroke-linecap="round"/><line id="clkM" x1="10" y1="10" x2="10" y2="4" stroke="#0e0a18" stroke-width="1.6" stroke-linecap="round"/></svg><b id="hTime">08:00</b> 第 <b id="hDay">1</b> 天</span>
   <span class="chip">金币 <b id="hCoin">0</b></span>
   <span class="chip">口碑 <b id="hRep">0</b></span>
   <span class="chip" id="edict"></span>
 </div>
 <div id="tip"></div>
 <div id="toast"></div>
+<div id="dlg" class="hidden"><canvas id="pL" width="48" height="34"></canvas><canvas id="pR" width="48" height="34"></canvas><div id="dlgBox"><span id="dlgName"></span><p id="dlgText"></p><span id="dlgMore">▼ 点一下继续</span></div></div>
 
 <div id="gameUI" class="hidden">
-  <div id="gameTop"><button class="px gray" id="calB">重新校准</button><button class="px gray" id="giveupB">交货</button></div>
+  <div id="gameTop"><span id="ratioBox" class="hidden"><button class="px gray" id="rDn">−</button><b id="rVal" class="chip"></b><button class="px gray" id="rUp">＋</button></span><button class="px gray" id="calB">重新校准</button><button class="px gray" id="giveupB">交货</button></div>
   <button id="lockB" class="pad">固定</button>
   <button id="zoomB" class="pad hidden">放大<br>1×</button>
   <button id="punchB" class="pad">打孔</button>
@@ -88,63 +101,78 @@ const SHOPS={
 const UPS=[
   {k:'wrist',name:'钢铁手腕',eff:'手抖 −35%',cost:[80,180]},
   {k:'zoom',name:'高倍放大镜',eff:'解锁放大键：放大后针头变慢、看得更清',cost:[120,300]},
-  {k:'night',name:'夜猫子基因',eff:'每晚多做 1 块饼干',cost:[60,140]},
+  {k:'night',name:'夜猫子基因',eff:'每块打孔时间 +5 秒',cost:[60,140]},
+];
+const SHOP_UPS=[
+  {k:'sign',name:'招牌',eff:'估值 +20%',cost:[100,220,450]},
+  {k:'bell',name:'门铃',eff:'每天多来 1 单',cost:[80,200]},
 ];
 const EDICTS=[
-  {t:'今天让一位客人超满意',r:30,ok:d=>d.best>=4},
+  {t:'今天让一位客人超满意（超赞或抢着买）',r:30,ok:d=>d.best>=4},
   {t:'今天不许有客人生气',r:20,ok:d=>d.orders>0&&d.angry===0},
   {t:'今天卖出 3 单',r:15,ok:d=>d.orders>=3},
   {t:'今天赚到 80 金币',r:25,ok:d=>d.rev>=80},
 ];
-const DEF={day:1,coins:50,rep:0,open:{home:1,biscuit:1,hair:0,tattoo:0},up:{wrist:0,zoom:0,night:0},edict:0,opened:false,phase:'night',nightDone:false,stock:[],customs:[],pickups:[]};
-let G=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongTown3')||'null');if(s)return Object.assign({},DEF,s)}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
+const DEF={day:1,coins:50,rep:0,open:{home:1,biscuit:1,hair:0,tattoo:0},up:{wrist:0,zoom:0,night:0,sign:0,bell:0},edict:0,sess:0,clock:480,phase:'day',ratio:1};
+let G=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongTown6')||'null');if(s)return Object.assign({},DEF,s)}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
 let D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};
-function save(){try{localStorage.setItem('nailongTown3',JSON.stringify(G))}catch(e){}}
-function hud(){$('hDay').textContent=G.day+(G.phase==='night'?' 天 · 晚上🌙':' 天 · 白天☀️');$('hCoin').textContent=G.coins;$('hRep').textContent=G.rep;
-  const e=EDICTS[G.edict];$('edict').textContent=G.phase==='night'?'🌙 晚上：去饼干店后厨打孔备货（货架 '+G.stock.length+' 块）':'✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）　货架 '+G.stock.length+' 块'}
+function save(){try{localStorage.setItem('nailongTown6',JSON.stringify(G))}catch(e){}}
+function fmtClock(m){m=Math.round(m);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function setClock(m){G.clock=m;const h=(m/60)%12,mi=m%60;
+  const hand=(id,a,l)=>{const e=$(id);e.setAttribute('x2',10+Math.sin(a)*l);e.setAttribute('y2',10-Math.cos(a)*l)};
+  hand('clkH',h/12*Math.PI*2,4.5);hand('clkM',mi/60*Math.PI*2,6.5);$('hTime').textContent=fmtClock(m)}
+function hud(){setClock(G.clock);$('hDay').textContent=G.day;$('hCoin').textContent=G.coins;$('hRep').textContent=G.rep;
+  const e=EDICTS[G.edict];$('edict').textContent=G.phase==='night'?'🌙 晚上店都关门了：点镇上的奶龙聊天，或者回主角家（桌上升级、解锁店铺，床上睡觉）':'✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）　今天还能营业 '+(2-G.sess)+' 次'}
 function toast(t,s=1.2){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,s*1000)}
 
 // ---------- pixel helpers ----------
 function R(x,y,w,h,c){lx.fillStyle=c;lx.fillRect(Math.round(x),Math.round(y),w,h)}
-function nailong(x,y,mood=0,t=0,scale=1){ // x,y = feet center
-  const s=scale,b=Math.round(Math.sin(t*10)*(mood===2?1:0));
+function nailong(x,y,mood=0,t=0,scale=1,needle=true){ // x,y = feet center
+  const s=scale,b=t?Math.round(Math.sin(t*12)*0.6):0;
   const P=(px,py,w,h,c)=>R(x+px*s,y+(py+b)*s,w*s,h*s,c);
   P(-6,-12,12,11,'#ffd23f');P(-7,-10,1,8,'#ffd23f');P(6,-10,1,8,'#ffd23f');P(-5,-13,10,1,'#ffd23f');
   P(-6,-2,12,1,'#e0a800');P(-4,-1,3,1,'#e0a800');P(1,-1,3,1,'#e0a800');
   P(-3,-9,8,6,'#fff2c0');
   // needle on head
-  P(0,-19,1,6,'#c9d2e0');P(-1,-15,3,2,'#7fb0ff');P(0,-20,1,1,'#ffffff');
+  if(needle){P(0,-19,1,6,'#c9d2e0');P(-1,-15,3,2,'#7fb0ff');P(0,-20,1,1,'#ffffff')}
   if(mood===1){P(-4,-10,2,1,'#2b1f45');P(2,-10,2,1,'#2b1f45');P(-2,-6,4,2,'#c4473a');P(-1,-6,2,1,'#ff8a8a')}
   else{P(-4,-10,2,2,'#2b1f45');P(2,-10,2,2,'#2b1f45');P(-1,-6,2,1,'#2b1f45');P(-6,-7,2,1,'#ff9aa8');P(4,-7,2,1,'#ff9aa8')}
 }
 
-// ---------- town (top-down) ----------
-let B=[],streets=[],deco=[],fountain=null,me={x:30,y:80,tx:30,ty:80,goal:null},townT=0,scene='town';
-const BW=40,ROOF=20,WALL=12;
+// ---------- town (top-down, layout from the producer's sketch) ----------
+let B=[],streets=[],deco=[],npcs=[],me={x:30,y:80,tx:30,ty:80,goal:null},townT=0,scene='town',MAP=null;
+// sketch coordinates (1400 × 800): buildings and the little paths between them
+const SK_B={home:[158,67,315,206],biscuit:[888,67,315,206],hair:[259,457,315,206],tattoo:[962,457,316,206]};
+const SK_P=[[[473,226],[888,226]],[[316,273],[316,385],[337,385],[337,457]],[[1057,273],[1057,457]],[[574,600],[962,600]]];
 function rnd(seed){let s=seed;return()=>(s=(s*16807)%2147483647)/2147483647}
 function layoutTown(){
-  const keys=['home','biscuit','hair','tattoo'];
-  const top=Math.ceil(80/S),H=LH-top,land=LW>=LH*1.3;
-  const cols=land?4:2,rows=land?1:2;
-  const fronts=land?[top+Math.round(H*0.5)]:[top+Math.round(H*0.36),top+Math.round(H*0.78)];
-  B=keys.map((k,i)=>{const r=Math.floor(i/cols),c=i%cols;return{k,x:Math.round(LW*(c+0.5)/cols),y:fronts[r],w:BW,h:ROOF+WALL}});
-  streets=fronts.map(y=>({x:0,y:y+1,w:LW,h:10}));
-  if(!land)streets.push({x:Math.round(LW/2)-5,y:fronts[0]+1,w:10,h:fronts[1]-fronts[0]+10});
-  // plaza with God's fountain in the biggest open area
-  if(land){const py=fronts[0]+11+Math.round((LH-fronts[0]-11)/2);fountain={x:Math.round(LW/2),y:py,r:Math.min(14,Math.round((LH-fronts[0]-11)/2)-3)};
-    streets.push({x:Math.round(LW/2)-5,y:fronts[0]+1,w:10,h:py-fronts[0]})}
-  else{fountain={x:Math.round(LW/2),y:Math.round((fronts[0]+11+fronts[1]-ROOF-WALL)/2),r:9}}
-  if(fountain.r<6)fountain=null;
-  // trees and flowers, kept off buildings, streets and the fountain
-  const rand=rnd(7),free=(x,y,m)=>y>top+4&&!B.some(b=>x>b.x-b.w/2-m&&x<b.x+b.w/2+m&&y>b.y-b.h-m-6&&y<b.y+m)&&
-    !streets.some(s=>x>s.x-m&&x<s.x+s.w+m&&y>s.y-m&&y<s.y+s.h+m)&&!(fountain&&Math.hypot(x-fountain.x,y-fountain.y)<fountain.r+m+4);
+  const top=Math.ceil(80/S),H=LH-top,land=LW>=LH;
+  const MW=land?1400:800,MH=land?800:1400,k=Math.min(LW/MW,H/MH);
+  const ox=Math.round((LW-MW*k)/2),oy=top+Math.round((H-MH*k)/2);
+  const T=(x,y)=>land?[ox+x*k,oy+y*k]:[ox+y*k,oy+x*k];
+  MAP={x:ox,y:oy,w:MW*k,h:MH*k};
+  HL=null;
+  B=Object.entries(SK_B).map(([key,[x,y,w,h]])=>{const [a,b]=T(x,y),[c,d]=T(x+w,y+h);
+    const bx=Math.min(a,c),by=Math.min(b,d),bw=Math.abs(c-a),bh=Math.abs(d-b);
+    return{k:key,x:Math.round(bx+bw/2),y:Math.round(by+bh),w:Math.round(bw),h:Math.round(bh)}});
+  const PW=Math.max(7,Math.round(26*k));streets=[];
+  SK_P.forEach(pts=>{for(let i=1;i<pts.length;i++){const [a,b]=T(...pts[i-1]),[c,d]=T(...pts[i]);
+    streets.push({x:Math.round(Math.min(a,c)-PW/2),y:Math.round(Math.min(b,d)-PW/2),w:Math.round(Math.abs(c-a)+PW),h:Math.round(Math.abs(d-b)+PW)})}});
+  const rand=rnd(7),inB=(x,y,m)=>B.some(b=>x>b.x-b.w/2-m&&x<b.x+b.w/2+m&&y>b.y-b.h-m-4&&y<b.y+m+6),
+    onS=(x,y,m)=>streets.some(s=>x>s.x-m&&x<s.x+s.w+m&&y>s.y-m&&y<s.y+s.h+m),
+    free=(x,y,m)=>y>top+4&&!inB(x,y,m)&&!onS(x,y,m);
   deco=[];
-  for(let i=0;i<400&&deco.filter(d=>d.t==='tree').length<Math.round(LW*LH/1400);i++){const x=rand()*LW,y=rand()*LH;
-    if(free(x,y,7)&&free(x,y-12,7)&&!deco.some(d=>d.t==='tree'&&Math.hypot(d.x-x,d.y-y)<14))deco.push({t:'tree',x:Math.round(x),y:Math.round(y)})}
-  for(let i=0;i<300&&deco.length<Math.round(LW*LH/500);i++){const x=rand()*LW,y=rand()*LH;
+  // trees ring the town, flowers anywhere on the grass
+  for(let i=0;i<600&&deco.filter(d=>d.t==='tree').length<Math.round(LW*LH/1500);i++){const x=rand()*LW,y=rand()*LH;
+    const inside=x>MAP.x+MAP.w*0.08&&x<MAP.x+MAP.w*0.92&&y>MAP.y+MAP.h*0.08&&y<MAP.y+MAP.h*0.92;
+    if(!inside&&free(x,y,7)&&free(x,y-12,7)&&!deco.some(d=>d.t==='tree'&&Math.hypot(d.x-x,d.y-y)<14))deco.push({t:'tree',x:Math.round(x),y:Math.round(y)})}
+  for(let i=0;i<300&&deco.length<Math.round(LW*LH/450);i++){const x=rand()*LW,y=rand()*LH;
     if(free(x,y,2)&&!deco.some(d=>Math.hypot(d.x-x,d.y-y)<6))deco.push({t:'flower',x:Math.round(x),y:Math.round(y),c:['#ff7fa8','#fff4a8','#ffffff','#b48cff'][Math.floor(rand()*4)]})}
   deco.sort((a,b)=>a.y-b.y);
-  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+7}
+  // townsfolk wandering around, as in the sketch
+  const spot=()=>{for(let i=0;i<80;i++){const x=MAP.x+8+Math.random()*(MAP.w-16),y=MAP.y+16+Math.random()*(MAP.h-20);if(!inB(x,y,4))return{x,y}}return{x:MAP.x+MAP.w/2,y:MAP.y+MAP.h/2}};
+  npcs=[];for(let i=0;i<9;i++){const p=spot(),q=spot();npcs.push({x:p.x,y:p.y,tx:q.x,ty:q.y,wait:Math.random()*3,spot})}
+  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+5}
 }
 function tree(x,y){
   lx.fillStyle='#0003';lx.beginPath();lx.ellipse(x+2,y+3,7,3,0,0,7);lx.fill();
@@ -153,33 +181,26 @@ function tree(x,y){
   rows.forEach(([o,w],i)=>R(x+o,y-12+i*1.4,w,2,i<2?'#5cc252':'#3f9b3a'));
   R(x-3,y-11,3,2,'#7fdc6e');R(x+2,y-7,2,1,'#2f7d2c');
 }
-function drawFountain(f){
-  const {x,y,r}=f;
-  for(let dy=-r;dy<=r;dy++){const w=Math.round(Math.sqrt(r*r-dy*dy)*1.3);R(x-w,y+dy*0.7,w*2,1,'#b9b0a0')}
-  const ri=r-3;for(let dy=-ri;dy<=ri;dy++){const w=Math.round(Math.sqrt(ri*ri-dy*dy)*1.3);R(x-w,y+dy*0.7,w*2,1,'#5aa9ff')}
-  for(let i=0;i<5;i++){const a=townT*2+i*1.3;R(x+Math.cos(a)*ri*0.9,y+Math.sin(a)*ri*0.5,1,1,'#ffffff')}
-  // God's needle statue in the middle
-  R(x-2,y-3,4,4,'#d8d0c0');R(x-1,y-14,2,11,'#e8e8f0');R(x-3,y-10,6,1,'#ffd23f');R(x,y-16,1,2,'#ffffff');
-}
 function building(b){
-  const {k,x,y}=b,l=x-BW/2,wt=y-WALL,rt=wt-ROOF,locked=!G.open[k];
+  const {k,x,y,w,h}=b,l=Math.round(x-w/2),wall=Math.max(9,Math.round(h*0.36)),roof=h-wall,wt=y-wall,rt=wt-roof,locked=!G.open[k];
   const pal={home:['#f2e3c6','#c4473a','#a03328'],biscuit:['#ffe3b0','#ffd23f','#ffffff'],hair:['#e6f2ff','#5aa9ff','#3f86d6'],tattoo:['#6a5590','#7a4fa8','#64408c']}[k];
-  R(l+3,rt+4,BW,ROOF+WALL,'#0003');
-  // front wall
-  R(l,wt,BW,WALL,pal[0]);R(l,y-1,BW,1,'#0002');
-  R(x-3,y-9,6,9,'#5a3b22');R(x+1,y-5,1,1,'#ffd23f');
-  R(l+5,wt+3,7,5,'#9fd8ff');R(l+5,wt+5,7,1,'#fff8');R(l+BW-12,wt+3,7,5,'#9fd8ff');R(l+BW-12,wt+5,7,1,'#fff8');
-  // roof seen from above
-  if(k==='biscuit'){for(let i=0;i<BW+4;i+=4)R(l-2+i,rt,2,ROOF+1,pal[1]),R(l+i,rt,2,ROOF+1,pal[2]);R(l-2,wt-1,BW+4,2,'#e0a800')}
-  else{for(let i=0;i<ROOF;i+=3)R(l-2,rt+i,BW+4,3,i%6?pal[1]:pal[2]);R(l-2,rt+Math.round(ROOF/2),BW+4,1,'#0002');R(l-2,wt-1,BW+4,2,pal[2])}
-  R(l-2,rt,BW+4,1,'#fff5');
-  if(k==='home'){R(l+BW-10,rt-3,5,7,'#8a7a6a');R(l+BW-10,rt-3,5,1,'#5a4a3a');
-    R(x-1,rt-8,3,14,'#ffd23f');R(x-4,rt-4,9,3,'#ffd23f');R(x,rt-8,1,14,'#fff2b0')}
+  R(l+3,rt+4,w,h,'#0003');
+  R(l,wt,w,wall,pal[0]);R(l,y-1,w,1,'#0002');
+  const dh=Math.min(wall-1,9);R(x-3,y-dh,6,dh,'#5a3b22');R(x+1,y-Math.round(dh/2),1,1,'#ffd23f');
+  const ww=Math.max(5,Math.round(w*0.16)),wh=Math.max(3,Math.round(wall*0.45)),wy=wt+Math.round((wall-wh)/2)-1;
+  R(l+Math.round(w*0.12),wy,ww,wh,'#9fd8ff');R(l+w-Math.round(w*0.12)-ww,wy,ww,wh,'#9fd8ff');
+  b.win=[[l+Math.round(w*0.12),wy,ww,wh],[l+w-Math.round(w*0.12)-ww,wy,ww,wh]];
+  if(k==='biscuit'){for(let i=0;i<w+4;i+=4)R(l-2+i,rt,2,roof+1,pal[1]),R(l+i,rt,2,roof+1,pal[2]);R(l-2,wt-1,w+4,2,'#e0a800')}
+  else{for(let i=0;i<roof;i+=3)R(l-2,rt+i,w+4,Math.min(3,roof-i),i%6?pal[1]:pal[2]);R(l-2,rt+Math.round(roof/2),w+4,1,'#0002');R(l-2,wt-1,w+4,2,pal[2])}
+  R(l-2,rt,w+4,1,'#fff5');
+  const cy=rt+Math.round(roof/2);
+  if(k==='home'){R(l+w-10,rt-3,5,7,'#8a7a6a');R(l+w-10,rt-3,5,1,'#5a4a3a');
+    R(x-1,cy-8,3,14,'#ffd23f');R(x-4,cy-4,9,3,'#ffd23f');R(x,cy-8,1,14,'#fff2b0')}
   if(k==='biscuit'){R(x-9,wt-7,18,7,'#e8b46a');R(x-9,wt-7,18,1,'#f6cf8a');for(let i=0;i<4;i++)R(x-6+i*4,wt-5,1,1,'#7a4a1a'),R(x-6+i*4,wt-3,1,1,'#7a4a1a')}
-  if(k==='hair'){for(let i=0;i<9;i++)R(x+6,y-10+i,2,1,['#c4473a','#fff','#2f6fc0'][(i+Math.floor(townT*6))%3]);R(x-8,rt+5,16,8,'#fff8e6');R(x-6,rt+7,12,1,'#2b1f45');for(let i=0;i<6;i++)R(x-6+i*2,rt+8,1,3,'#2b1f45')}
-  if(k==='tattoo'){const c=Math.sin(townT*5)>-0.3?'#ff5fa2':'#8a4a6a';R(x-5,rt+5,4,3,c);R(x+1,rt+5,4,3,c);R(x-6,rt+7,12,3,c);R(x-4,rt+10,8,2,c);R(x-2,rt+12,4,1,c)}
-  if(locked){lx.fillStyle='#1b1430a0';lx.fillRect(l-2,rt-2,BW+4,ROOF+WALL+2);
-    R(x-4,wt-4,8,6,'#ffd23f');R(x-3,wt-8,1,4,'#ffd23f');R(x+2,wt-8,1,4,'#ffd23f');R(x-3,wt-9,6,1,'#ffd23f');R(x,wt-2,1,2,'#3a2a00')}
+  if(k==='hair'){for(let i=0;i<Math.min(9,wall);i++)R(x+6,y-Math.min(9,wall)+i,2,1,['#c4473a','#fff','#2f6fc0'][(i+Math.floor(townT*6))%3]);R(x-8,cy-4,16,8,'#fff8e6');R(x-6,cy-2,12,1,'#2b1f45');for(let i=0;i<6;i++)R(x-6+i*2,cy-1,1,3,'#2b1f45')}
+  if(k==='tattoo'){const c=Math.sin(townT*5)>-0.3?'#ff5fa2':'#8a4a6a';R(x-5,cy-4,4,3,c);R(x+1,cy-4,4,3,c);R(x-6,cy-2,12,3,c);R(x-4,cy+1,8,2,c);R(x-2,cy+3,4,1,c)}
+  if(locked){lx.fillStyle='#1b1430a0';lx.fillRect(l-2,rt-2,w+4,h+2);
+    R(x-4,cy-2,8,6,'#ffd23f');R(x-3,cy-6,1,4,'#ffd23f');R(x+2,cy-6,1,4,'#ffd23f');R(x-3,cy-7,6,1,'#ffd23f');R(x,cy,1,2,'#3a2a00')}
 }
 function drawTown(dt){
   townT+=dt;
@@ -187,32 +208,37 @@ function drawTown(dt){
   for(let y=3;y<LH;y+=7)for(let x=(y%2)*4;x<LW;x+=11)R(x,y,1,2,'#58ad48');
   streets.forEach(s=>{R(s.x,s.y,s.w,s.h,'#d8c8a0');
     for(let y=s.y;y<s.y+s.h;y+=5)for(let x=s.x+((y-s.y)/5%2)*3;x<s.x+s.w;x+=6)R(x,y,1,1,'#c4b48c')});
-  streets.forEach(s=>{R(s.x,s.y,s.w,1,'#b8a87e');R(s.x,s.y+s.h-1,s.w,1,'#b8a87e')});
-  if(fountain)drawFountain(fountain);
-  // draw buildings, trees and Nailong sorted by their front y so nearer things overlap farther ones
   const dx=me.tx-me.x,dy=me.ty-me.y,d=Math.hypot(dx,dy),sp=70*dt,walking=d>sp;
   if(walking){me.x+=dx/d*sp;me.y+=dy/d*sp}
   else{me.x=me.tx;me.y=me.ty;if(me.goal){const g=me.goal;me.goal=null;enterShop(g)}}
+  npcs.forEach(n=>{if(n.wait>0){n.wait-=dt;return}const ex=n.tx-n.x,ey=n.ty-n.y,e=Math.hypot(ex,ey),v=14*dt;
+    if(e>v){n.x+=ex/e*v;n.y+=ey/e*v;n.walk=true}else{n.walk=false;n.wait=1+Math.random()*3;const q=n.spot();n.tx=q.x;n.ty=q.y}});
+  const shadow=(x,y)=>{lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(x),Math.round(y),6,2,0,0,7);lx.fill()};
   const items=[...B.map(b=>({y:b.y,f:()=>building(b)})),...deco.map(o=>({y:o.y,f:()=>o.t==='tree'?tree(o.x,o.y):(R(o.x,o.y,1,1,o.c),R(o.x-1,o.y+1,1,1,o.c),R(o.x+1,o.y+1,1,1,o.c),R(o.x,o.y+2,1,1,'#3f9b3a'))})),
-    {y:me.y,f:()=>{lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(me.x),Math.round(me.y),6,2,0,0,7);lx.fill();nailong(Math.round(me.x),Math.round(me.y),0,walking?townT:0)}}];
+    ...npcs.map(n=>({y:n.y,f:()=>{shadow(n.x,n.y);nailong(Math.round(n.x),Math.round(n.y),0,n.walk?townT+n.x:0,1,false)}})),
+    {y:me.y,f:()=>{shadow(me.x,me.y);nailong(Math.round(me.x),Math.round(me.y),0,walking?townT:0)}}];
   items.sort((a,b)=>a.y-b.y).forEach(i=>i.f());
   if(G.phase==='night'){lx.fillStyle='#0b0b3a8c';lx.fillRect(0,0,LW,LH);
-    B.forEach(b=>{if(!G.open[b.k])return;const l=b.x-BW/2,wt=b.y-WALL;R(l+5,wt+3,7,5,'#ffe27a');R(l+BW-12,wt+3,7,5,'#ffe27a')})}
+    B.forEach(b=>{if(!G.open[b.k]||!b.win)return;b.win.forEach(([x,y,w,h])=>R(x,y,w,h,'#ffe27a'))})}
 }
 function townLabels(){
-  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
   const fs=Math.max(11,Math.round(S*4));
   ctx.font=`900 ${fs*DPR}px -apple-system,"PingFang SC",sans-serif`;
-  B.forEach(b=>{const t=SHOPS[b.k].name+(G.open[b.k]?'':` · ${SHOPS[b.k].price}金币`);
-    const x=b.x*S*DPR,y=(b.y+7)*S*DPR;
+  B.forEach(b=>{const t=(b.k==='biscuit'?'苏打饼干店':SHOPS[b.k].name)+(G.open[b.k]?'':` · ${SHOPS[b.k].price}金币`);
+    const x=b.x*S*DPR,y=(b.y+5)*S*DPR;
     ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,x,y);ctx.fillStyle=G.open[b.k]?'#fff8e6':'#ffd23f';ctx.fillText(t,x,y)});
   ctx.restore();
 }
 cv.addEventListener('pointerdown',e=>{
-  if(scene!=='town'||!$('panel').classList.contains('hidden'))return;
+  if(!$('panel').classList.contains('hidden')||DLG)return;
+  if(scene==='home')return homeTap(e.clientX/S,e.clientY/S);
+  if(scene!=='town')return;
   const x=e.clientX/S,y=e.clientY/S;
-  const b=B.find(b=>x>b.x-b.w/2-3&&x<b.x+b.w/2+3&&y>b.y-b.h-8&&y<b.y+8);
-  if(b){me.tx=b.x;me.ty=b.y+7;me.goal=b.k}
+  const n=npcs.find(n=>Math.abs(n.x-x)<8&&y>n.y-16&&y<n.y+3);
+  if(n){me.tx=n.x+(me.x<n.x?-10:10);me.ty=n.y;me.goal=null;n.wait=4;return chat(n)}
+  const b=B.find(b=>x>b.x-b.w/2-3&&x<b.x+b.w/2+3&&y>b.y-b.h-6&&y<b.y+8);
+  if(b){me.tx=b.x;me.ty=b.y+5;me.goal=b.k}
   else{me.tx=Math.max(4,Math.min(LW-4,x));me.ty=Math.max(Math.ceil(80/S),Math.min(LH-2,y));me.goal=null}
 });
 
@@ -223,164 +249,281 @@ function bind(id,fn){const el=$(id);if(el)el.onclick=fn}
 function welcome(){
   show(`<h2>奶龙小镇 · 可浏览 demo</h2>
   <p>2078 年，上帝说：<b>苏打饼干一定要有孔。</b>你是针头奶龙，替上帝给小镇打孔。</p>
-  <p>玩法像《潜水员戴夫》：<b>晚上</b>在饼干店后厨给饼干打孔备货，<b>白天</b>摆摊卖饼干：每块饼干晚上按评分估好价，白天你来定价，比估值便宜卖得快、贵了卖得慢。定制单白天接、当晚做、第二天客人来取并给反馈。打烊出账本，回<b>主角家</b>神台祈祷升级、睡觉。攒钱开<b>植发店</b>和<b>纹身店</b>（白天营业，客人当场打孔）。</p>
-  <p>俯视角小镇：点建筑奶龙会走过去，点空地闲逛。打孔沿用核心玩法：针头只靠<b>倾斜手机</b>移动，左手「固定」，右手「打孔」。电脑上用方向键。</p>
-  <div class="row"><button class="px" id="goB">进入小镇（第 ${G.day} 天${G.phase==='night'?'晚上':'白天'}）</button></div>
-  <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，具体以 GAMEPLAY.md 为准。</p>`);
+  <p><b>白天边做边卖</b>：开店前定好售价比，客人排队点单，你现场打孔，每块打完按评分估值、按售价上货架，比估值便宜卖得快、贵了卖得慢；定制单当场做，客人给表情反馈。打烊出账本。</p>
+  <p><b>晚上</b>：店都关门了，可以在镇上找奶龙聊天，或者回<b>主角家</b>：桌上的奶帝十字架升级装备，旁边升级店铺、解锁<b>植发店</b>和<b>纹身店</b>，右边的床睡觉。</p>
+  <p>俯视角小镇：点建筑奶龙会走过去，点空地闲逛。打孔只靠<b>倾斜手机</b>，左手「固定」，右手「打孔」。电脑上用方向键。</p>
+  <p>左上角是时钟：白天有<b>上午、下午两次营业</b>，17:00 后天黑关门；晚上可以点镇上的奶龙聊天，或者回家。</p>
+  <div class="row"><button class="px" id="goB">进入小镇（第 ${G.day} 天 ${fmtClock(G.clock)}）</button></div>
+  <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，以策划案和 GAMEPLAY.md 为准。</p>`);
   bind('goB',hide);
 }
+// 对话界面（制作人草图）：底部对话框 + 名字牌，左边针头奶龙、右边镇民半身立绘，点一下翻下一句
+const ME='针头奶龙';
+const TALKS_DAY=[
+  [['N','老板，今天的饼干孔扎得真正啊！'],[ME,'那当然，上帝亲自要求的。'],['N','下午我再来买一块三星的！']],
+  [['N','你的针头好闪，借我照照镜子。'],[ME,'别靠太近，会被扎一个孔。'],['N','……那算了。']],
+  [['N','隔壁老奶龙又秃了一块。'],[ME,'等我攒够钱就开植发店。'],['N','先给我预约一个发际线！']]];
+const TALKS_NIGHT=[
+  [['N','晚上好，针头奶龙。下班啦？'],[ME,'下班了。今天扎了好多孔，手腕都酸了。'],['N','去神台求求奶帝，给你换个钢铁手腕。'],[ME,'好主意，回家就去。']],
+  [['N','你知道吗？月亮上的坑，其实是上帝扎的孔。'],[ME,'难怪月亮看起来像一块苏打饼干。'],['N','嘘，别让上帝听见。']],
+  [['N','我昨晚梦见自己变成了一块苏打饼干……'],[ME,'然后呢？'],['N','然后你拿着针头向我走过来。'],[ME,'……那不是梦。']],
+  [['N','2078 年了，饼干还是不能没有孔吗？'],[ME,'不能。这是上帝的旨意。'],['N','那我明天来买一块，带孔的。']]];
+let DLG=null;
+function chat(n){
+  const T=(G.phase==='night'?TALKS_NIGHT:TALKS_DAY),t=T[Math.floor(Math.random()*T.length)];
+  DLG={lines:t,i:0,npc:n.name||(n.name=who())};
+  $('dlg').classList.remove('hidden');drawPortrait($('pL'),true);drawPortrait($('pR'),false);dlgShow();
+}
+function dlgShow(){const [w,txt]=DLG.lines[DLG.i],mine=w===ME;
+  $('dlgName').textContent=mine?ME:DLG.npc;$('dlgText').textContent=txt;
+  $('pL').style.opacity=mine?1:0.45;$('pR').style.opacity=mine?0.45:1}
+function dlgNext(){if(!DLG)return;DLG.i++;if(DLG.i>=DLG.lines.length){DLG=null;$('dlg').classList.add('hidden');return}dlgShow()}
+function drawPortrait(c,needle){const g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);
+  const keep=R;R=(x,y,w,h,col)=>{g.fillStyle=col;g.fillRect(Math.round(x),Math.round(y),Math.ceil(w),Math.ceil(h))};
+  nailong(c.width/2,c.height+10,0,0,2.6,needle);R=keep}
 function msg(title,text,btn='好',fn=hide){show(`<h2>${title}</h2><p>${text}</p><div class="row"><button class="px gray" id="xB">${btn}</button></div>`);bind('xB',fn)}
 function stars(n){return '★'.repeat(n)+'☆'.repeat(3-n)}
 function enterShop(k){
-  if(k==='home')return homePanel();
-  if(!G.open[k]){
-    const p=SHOPS[k].price;
-    show(`<h2>${SHOPS[k].name}（未开张）</h2><p>${SHOPS[k].desc}。</p><p>正式版里要先打完这家店的一章（约 5 关，最后一关上帝验收）才能开张；demo 里直接花金币开。</p>
-      <div class="row"><button class="px" id="buyB" ${G.coins<p?'disabled':''}>花 ${p} 金币开张</button><button class="px gray" id="xB">走了</button></div>`);
-    bind('buyB',()=>{G.coins-=p;G.open[k]=1;save();hud();toast(SHOPS[k].name+' 开张！');enterShop(k)});bind('xB',hide);return;
-  }
-  if(G.phase==='night'){
-    if(k!=='biscuit')return msg(SHOPS[k].name,'晚上不营业。晚上去<b>饼干店</b>后厨打孔备货。');
-    if(G.nightDone)return msg('饼干店后厨','今晚的饼干已经做完了。','天亮了',dawn);
-    const n=3+G.up.night,c=G.customs.length;
-    show(`<h2>饼干店后厨 · 晚上</h2><p>今晚要做 <b>${n}</b> 块饼干${c?`，其中 <b>${c}</b> 块是定制单，先做`:''}。扎得越准星级越高，裂掉的不能卖。</p>
-      <p>货架上现在有：${G.stock.length?G.stock.map(s=>stars(s.st)).join('、'):'空的'}</p>
-      <div class="row"><button class="px" id="goB">开工打孔</button><button class="px gray" id="xB">等会儿</button></div>`);
-    bind('goB',startNight);bind('xB',hide);return;
-  }
-  if(G.opened)return msg(SHOPS[k].name,'今天已经营业过了，一天只开一家店。回<b>主角家</b>睡觉，晚上再来。');
-  const note=k==='biscuit'?`货架上有 <b>${G.stock.length}</b> 块饼干（${G.stock.map(s=>stars(s.st)).join('、')||'空'}）${G.pickups.length?`，今天有 <b>${G.pickups.length}</b> 位定制客人来取货`:''}。`:'今天的客人会当场坐下来让你打孔。';
-  show(`<h2>${SHOPS[k].name} · 白天</h2><p>${SHOPS[k].desc}。</p><p>${note}</p>
-    <div class="row"><button class="px" id="openB">开门营业</button><button class="px gray" id="xB">再想想</button></div>`);
-  bind('openB',()=>{G.opened=true;save();k==='biscuit'?startSelling():startSpot(k)});bind('xB',hide);
+  if(k==='home')return enterHome();
+  if(!G.open[k])return msg(`${SHOPS[k].name}（未开张）`,`${SHOPS[k].desc}。回<b>主角家</b>，在桌上的「升级店铺 / 解锁店铺」花 ${SHOPS[k].price} 金币解锁。正式版里还要先打完这家店的一章。`);
+  if(G.phase==='night')return msg(SHOPS[k].name,'天黑了，店都关门了。可以在镇上找奶龙聊天，或者回家。');
+  if(G.sess>=2)return msg(SHOPS[k].name,'今天两次营业都用完了。');
+  if(k==='biscuit')return pricePanel();
+  show(`<h2>要开始营业吗？</h2><p><b>${SHOPS[k].name}</b> · ${G.sess?'下午':'上午'}场（今天还剩 ${2-G.sess} 次）。${SHOPS[k].desc}，客人当场坐下来让你打孔、当场付钱。</p>
+    <div class="row"><button class="px" id="openB">开始营业</button><button class="px gray" id="xB">取消</button></div>`);
+  bind('openB',()=>{beginSession();startSpot(k)});bind('xB',hide);
 }
-function homePanel(){
-  const ups=UPS.map(u=>{const lv=G.up[u.k],c=u.cost[lv];
-    return `<div class="up"><div><b>${u.name}</b> Lv${lv}<br>${u.eff}</div>${c==null?'<span>满级</span>':`<button class="px blue" data-u="${u.k}" ${G.coins<c?'disabled':''}>${c} 金币</button>`}</div>`}).join('');
-  const canSleep=G.phase==='day'&&G.opened;
-  show(`<h2>主角家 · 十字架神台</h2><p>跪在神台前祈祷，上帝会对针头奶龙动手改造。</p>${ups}
-    <p style="color:#a99cc6;font-size:12px">${G.phase==='night'?'现在是晚上，先去饼干店后厨打孔备货。':canSleep?'今天营业完了，可以睡觉了。':'白天还没开店。'}</p>
-    <div class="row"><button class="px gray" id="sleepB">${canSleep?'睡觉，进入第 '+(G.day+1)+' 天晚上':'出门'}</button></div>`);
-  document.querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>{
-    const u=UPS.find(u=>u.k===el.dataset.u),c=u.cost[G.up[u.k]];if(G.coins<c)return;
-    G.coins-=c;G.up[u.k]++;save();hud();
-    const lines=['上帝：准了。','上帝：这个改造不退不换。','上帝：去打孔吧，孩子。','上帝：别问，问就是旨意。'];
-    toast('✝ '+lines[Math.floor(Math.random()*lines.length)],1.6);homePanel()});
-  bind('sleepB',()=>{if(canSleep)sleep();else hide()});
+function upRows(list){return list.map(u=>{const lv=G.up[u.k],c=u.cost[lv];
+  return `<div class="up"><div><b>${u.name}</b> Lv${lv}<br>${u.eff}</div>${c==null?'<span>满级</span>':`<button class="px blue" data-u="${u.k}" ${G.coins<c?'disabled':''}>${c} 金币</button>`}</div>`}).join('')}
+function bindUps(list,again,lines){document.querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>{
+  const u=list.find(u=>u.k===el.dataset.u),c=u.cost[G.up[u.k]];if(G.coins<c)return;
+  G.coins-=c;G.up[u.k]++;save();hud();toast(lines[Math.floor(Math.random()*lines.length)],1.6);again()})}
+// ---------- inside the hero's home (layout from the producer's sketch) ----------
+let HM={x:0,y:0,tx:0,ty:0,goal:null},HL=null;
+function homeLayout(){
+  const top=Math.ceil(70/S),H=LH-top;
+  const desk={x:4,y:top+Math.round(H*0.12),w:Math.round(LW*0.24),h:Math.round(H*0.74)};
+  const itemH=Math.round(desk.h*0.3);
+  HL={top,desk,
+    cross:{x:desk.x+6,y:desk.y+Math.round(desk.h*0.1),w:desk.w-12,h:itemH,goal:'cross',label:'奶帝十字架 · 升级装备'},
+    shops:{x:desk.x+6,y:desk.y+desk.h-Math.round(desk.h*0.1)-itemH,w:desk.w-12,h:itemH,goal:'shops',label:'升级店铺 / 解锁店铺'},
+    bed:{x:Math.round(LW*0.78),y:top+Math.round(H*0.22),w:Math.round(LW*0.17),h:Math.round(H*0.52),goal:'bed',label:'床'},
+    door:{x:Math.round(LW*0.62)-9,y:LH-6,w:18,h:6,goal:'door',label:'出门'}};
 }
-function sleep(){G.stock=G.stock.filter(s=>s.nights<1).map(s=>({...s,nights:s.nights+1,v:Math.max(1,Math.round(s.v*0.7)),p:0}));G.day++;G.phase='night';G.opened=false;G.nightDone=false;D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};save();hud();hide();toast('第 '+G.day+' 天 · 晚上，去后厨打孔',1.6)}
-function dawn(){G.phase='day';G.edict=(G.edict+1+Math.floor(Math.random()*(EDICTS.length-1)))%EDICTS.length;save();hud();hide();toast('天亮了 · 上帝发来今日旨意',1.6)}
+function enterHome(){
+  hide();scene='home';homeLayout();HM.x=HM.tx=Math.round(LW/2);HM.y=HM.ty=LH-10;HM.goal=null;
+  toast(G.phase==='night'?'回到家了：桌上可以升级，右边是床':'主角家：桌上可以升级',1.4);
+}
+function drawHome(dt){
+  townT+=dt;if(!HL)homeLayout();const {top,desk,cross,shops,bed,door}=HL;
+  R(0,0,LW,LH,'#5b3a2a');
+  for(let y=top;y<LH;y+=6)for(let x=((y-top)/6%2)*8;x<LW;x+=16)R(x,y,15,5,(y/6)%2?'#c08a55':'#b77f4c');
+  for(let y=top;y<LH;y+=6)R(0,y+5,LW,1,'#9a6a3c');
+  R(0,0,LW,top,'#e9d6b0');for(let x=0;x<LW;x+=10)R(x,0,1,top,'#d9c49c');R(0,top-2,LW,2,'#7a4a1a');
+  // window and a picture of God on the wall
+  R(Math.round(LW*0.45),3,Math.round(LW*0.1),top-8,G.phase==='night'?'#1d2a5a':'#9fd8ff');
+  // desk
+  R(desk.x+2,desk.y+3,desk.w,desk.h,'#0003');R(desk.x,desk.y,desk.w,desk.h,'#8a5a2e');R(desk.x,desk.y,desk.w,2,'#a87442');
+  R(desk.x+2,desk.y+desk.h-2,desk.w-4,2,'#6a4220');
+  // item 1: the God-Nailong cross
+  R(cross.x,cross.y,cross.w,cross.h,'#f6e7c4');const cx=cross.x+Math.round(cross.w/2),cy=cross.y+Math.round(cross.h/2);
+  const gl=Math.sin(townT*3)>0?'#fff2b0':'#ffd23f';R(cx-1,cy-Math.round(cross.h*0.38),3,Math.round(cross.h*0.76),gl);R(cx-Math.round(cross.h*0.22),cy-Math.round(cross.h*0.16),Math.round(cross.h*0.44),3,gl);
+  // item 2: a little town model for shop upgrades
+  R(shops.x,shops.y,shops.w,shops.h,'#e6f2ff');const sx=shops.x+Math.round(shops.w/2),sy=shops.y+shops.h-3;
+  [[-10,'#ffd23f'],[-3,'#5aa9ff'],[4,'#7a4fa8']].forEach(([o,c])=>{R(sx+o,sy-6,6,6,'#fff8e6');R(sx+o-1,sy-9,8,3,c)});
+  // bed
+  R(bed.x+2,bed.y+3,bed.w,bed.h,'#0003');R(bed.x,bed.y,bed.w,bed.h,'#9a6a50');R(bed.x+2,bed.y+3,bed.w-4,bed.h-6,'#e8e8e8');
+  R(bed.x+3,bed.y+4,Math.round(bed.w/2)-4,Math.round(bed.h*0.14),'#ffffff');R(bed.x+Math.round(bed.w/2)+1,bed.y+4,Math.round(bed.w/2)-4,Math.round(bed.h*0.14),'#ffffff');
+  R(bed.x+2,bed.y+Math.round(bed.h*0.25),bed.w-4,Math.round(bed.h*0.7),'#8fd6ea');R(bed.x+2,bed.y+Math.round(bed.h*0.25),bed.w-4,3,'#c6ecf6');
+  // door
+  R(door.x,door.y,door.w,door.h,'#3a2414');R(door.x+2,door.y+1,door.w-4,door.h-1,'#6a4220');
+  // hero
+  const dx=HM.tx-HM.x,dy=HM.ty-HM.y,d=Math.hypot(dx,dy),sp=60*dt,walking=d>sp;
+  if(walking){HM.x+=dx/d*sp;HM.y+=dy/d*sp}else{HM.x=HM.tx;HM.y=HM.ty;if(HM.goal){const g=HM.goal;HM.goal=null;homeAct(g)}}
+  lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(HM.x),Math.round(HM.y),8,2.5,0,0,7);lx.fill();
+  nailong(Math.round(HM.x),Math.round(HM.y),0,walking?townT:0,Math.max(1,Math.min(2,LH/90)));
+  if(G.phase==='night'){lx.fillStyle='#0b0b3a55';lx.fillRect(0,0,LW,LH)}
+}
+function homeLabels(){
+  if(!HL)return;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';const k=S*DPR;
+  ctx.font=`900 ${Math.max(11,Math.round(S*3.6))*DPR}px -apple-system,"PingFang SC",sans-serif`;ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.fillStyle='#fff8e6';
+  [HL.cross,HL.shops].forEach(o=>{const x=(o.x+o.w/2)*k,y=(o.y+o.h+5)*k;ctx.strokeText(o.label,x,y);ctx.fillText(o.label,x,y)});
+  [[HL.bed,(HL.bed.y+HL.bed.h+5)],[HL.door,HL.door.y-4]].forEach(([o,yy])=>{const x=(o.x+o.w/2)*k;ctx.strokeText(o.label,x,yy*k);ctx.fillText(o.label,x,yy*k)});
+  ctx.restore();
+}
+function homeTap(x,y){
+  const hit=['cross','shops','bed','door'].map(k=>HL[k]).find(o=>x>o.x-3&&x<o.x+o.w+3&&y>o.y-6&&y<o.y+o.h+6);
+  if(hit){HM.goal=hit.goal;
+    if(hit.goal==='bed'){HM.tx=hit.x-8;HM.ty=hit.y+Math.round(hit.h*0.7)}
+    else if(hit.goal==='door'){HM.tx=hit.x+hit.w/2;HM.ty=LH-4}
+    else{HM.tx=HL.desk.x+HL.desk.w+10;HM.ty=hit.y+hit.h}}
+  else{HM.tx=Math.max(HL.desk.x+HL.desk.w+6,Math.min(LW-6,x));HM.ty=Math.max(HL.top+16,Math.min(LH-4,y));HM.goal=null}
+}
+function homeAct(g){
+  if(g==='cross')return crossPanel();
+  if(g==='shops')return shopsPanel();
+  if(g==='door'){scene='town';const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+5;me.goal=null;return}
+  if(G.phase==='night')return show(`<h2>床</h2><p>今天辛苦了。睡一觉，明天早上 08:00 上帝会发新的旨意。</p><div class="row"><button class="px" id="sleepB">睡觉，进入第 ${G.day+1} 天</button><button class="px gray" id="xB">再等等</button></div>`),bind('sleepB',sleep),bind('xB',hide);
+  msg('床',`现在才 ${fmtClock(G.clock)}，天还没黑。白天还能营业 ${2-G.sess} 次，营业完天黑了再睡。`);
+}
+function crossPanel(){
+  show(`<h2>奶帝十字架 · 升级装备</h2><p>对着十字架祈祷，奶帝（上帝）会对针头奶龙动手改造。</p>${upRows(UPS)}<div class="row"><button class="px gray" id="xB">起身</button></div>`);
+  bindUps(UPS,crossPanel,['✝ 奶帝：准了。','✝ 奶帝：这个改造不退不换。','✝ 奶帝：去打孔吧，孩子。','✝ 奶帝：别问，问就是旨意。']);bind('xB',hide);
+}
+function shopsPanel(){
+  const locked=['hair','tattoo'].filter(k=>!G.open[k]).map(k=>`<div class="up"><div><b>解锁${SHOPS[k].name}</b><br>${SHOPS[k].desc}</div><button class="px" data-open="${k}" ${G.coins<SHOPS[k].price?'disabled':''}>${SHOPS[k].price} 金币</button></div>`).join('');
+  show(`<h2>升级店铺 / 解锁店铺</h2><p style="text-align:center"><b>饼干店</b></p>${upRows(SHOP_UPS)}${locked}<div class="row"><button class="px gray" id="xB">好了</button></div>`);
+  bindUps(SHOP_UPS,shopsPanel,['装修队：搞定！','新东西装好了。']);bind('xB',hide);
+  document.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>{const k=el.dataset.open,p=SHOPS[k].price;if(G.coins<p)return;
+    G.coins-=p;G.open[k]=1;save();hud();toast(SHOPS[k].name+' 开张！白天可以去营业');shopsPanel()});
+}
+function sleep(){hide();G.day++;G.phase='day';G.sess=0;G.clock=480;G.edict=(G.edict+1+Math.floor(Math.random()*(EDICTS.length-1)))%EDICTS.length;
+  D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};save();hud();hide();toast('第 '+G.day+' 天 · 早上，上帝发来今日旨意',1.6)}
 
-// ---------- night: punch biscuits into stock ----------
+// ---------- day: biscuit shop, punch and sell on the spot ----------
 const NAMES=['路过的奶龙','隔壁老奶龙','穿西装的奶龙','健身奶龙','奶龙小学生','神秘收藏家'];
 const HOLES=['圆','星','心','方'];
-let nightQ=[];
-function startNight(){
-  nightQ=[];const n=3+G.up.night;
-  G.customs.forEach(c=>nightQ.push({mode:'night',kind:'biscuit',custom:c}));
-  while(nightQ.length<n)nightQ.push({mode:'night',kind:'biscuit'});
-  G.customs=[];save();nextNight();
-}
-function nextNight(){
-  if(!nightQ.length){G.nightDone=true;save();return msg('今晚收工','饼干都上架了，已按评分估好价。货架：'+(G.stock.map(s=>stars(s.st)+' 估值 '+s.v).join('、')||'空的')+'。白天摆摊时可以调价。','天亮了',dawn)}
-  const o=nightQ[0],left=nightQ.length;
-  show(`<h2>后厨 · 还剩 ${left} 块</h2><p>${o.custom?`<b>定制单</b>（${o.custom.who}）：全部扎<b>${o.custom.hole}</b>形孔，要 ★★★，明天来取。`:'普通饼干：扎准了上架卖。'}</p>
-    <div class="row"><button class="px" id="takeB">开扎</button></div>`);
-  bind('takeB',()=>startPunch(o));
-}
-function nightResult(o,res){
-  const t=tierOf(res);nightQ.shift();D.mat+=5;
-  const st=t>=3?3:t===2?2:t===1?1:0;
-  if(o.custom)G.pickups.push({who:o.custom.who,hole:o.custom.hole,tier:t});
-  const v=Math.round(SHOPS.biscuit.base*(0.6+0.4*st)*(0.8+0.4*res.acc));
-  if(!o.custom&&st)G.stock.push({st,v,p:v,nights:0}),G.stock.sort((a,b)=>b.v-a.v),G.stock.length=Math.min(G.stock.length,10);
-  save();
-  msg(o.custom?'定制饼干做好了':st?`上架：${stars(st)} · 估值 ${v} 金币`:'饼干裂了 💥',`扎中 ${res.hit}/${res.total}，扎歪 ${res.wrong}，平均准度 ${Math.round(res.acc*100)}%。${o.custom?'明天客人来取时会给反馈。':st?'':'裂掉的饼干不能卖，原料白花了。'}`,'下一块',nextNight);
-}
-
-// ---------- day: stall with player-set prices ----------
-let shop=null,queue=[],stall=null;
+let shop=null,queue=[],day=null;
 function who(){return NAMES[Math.floor(Math.random()*NAMES.length)]}
-function startSelling(){
-  shop='biscuit';queue=G.pickups.map(p=>({type:'pickup',...p}));G.pickups=[];
-  queue.push({type:'order',who:who(),hole:HOLES[Math.floor(Math.random()*HOLES.length)]});
-  save();nextCustomer();
+function reaction(r){return r<0.8?['😍','抢着买']:r<1.1?['🙂','正常买走']:r<1.4?['🤔','犹豫了一下还是买了']:['😤','嫌贵']}
+function pricePanel(){
+  show(`<h2>要开始营业吗？</h2>
+    <p><b>苏打饼干店</b> · ${G.sess?'下午':'上午'}场（今天还剩 ${2-G.sess} 次）。营业 <b>${DAY_TIME}</b> 秒（游戏里 4 小时）。上方最多 3 位客人举着订单排队，你在中间现场打孔，打完交给<b>最前面</b>的客人。每块打完按评分估值，售价 = 估值 × 售价比，<b>低于估值卖得快，高于估值卖得慢</b>；没卖掉的放货架，打烊清掉。营业中也能改价。</p>
+    <div class="row" style="align-items:center"><button class="px gray" id="rM">−</button><b id="rV" style="font-size:24px;min-width:70px">×${G.ratio.toFixed(1)}</b><button class="px gray" id="rP">＋</button></div>
+    <p id="rH" style="text-align:center"></p>
+    <div class="row"><button class="px" id="openB">开始营业</button><button class="px gray" id="xB">取消</button></div>`);
+  const upd=()=>{$('rV').textContent='×'+G.ratio.toFixed(1);const [e,t]=reaction(G.ratio);$('rH').textContent=`客人大概会：${e} ${t}`};
+  bind('rM',()=>{G.ratio=Math.max(0.5,Math.round((G.ratio-0.1)*10)/10);upd()});bind('rP',()=>{G.ratio=Math.min(2,Math.round((G.ratio+0.1)*10)/10);upd()});upd();
+  bind('openB',()=>{beginSession();startBiscuitDay()});bind('xB',hide);
+}
+// 白天两次营业：上午 08:00–12:00、下午 13:00–17:00，之后天黑关门
+const SESS_START=[480,780];
+function beginSession(){G.clock=SESS_START[G.sess];save()}
+function endSession(){G.sess++;
+  if(G.sess>=2)return closeShop();
+  setClock(720);G.clock=720;save();hud();
+  msg('上午营业结束','现在是中午 12:00。下午还能再营业一次，可以换一家店。','好',hide)}
+// 营业界面（策划案 v013 草图）：上方 3 位客人举着订单，中间打孔，打完交给最前面的客人
+const DAY_TIME=50;
+function valueOf(st,acc){return Math.round(SHOPS.biscuit.base*(0.6+0.4*st)*(0.8+0.4*acc)*(1+0.2*G.up.sign))}
+let C=null,custId=0;
+function startBiscuitDay(){
+  shop='biscuit';
+  C={t:0,cust:[],shelf:[],next:0.5,log:'开门了！客人马上来',logT:3,pops:[]};
+  startCounter();
+}
+async function startCounter(){
+  if(!askedTilt){askedTilt=true;await enableTilt()}
+  hide();scene='punch';calibrate();
+  P={counter:true,kind:'biscuit',o:{},tg:[],holes:[],wrong:0,t:0,limit:DAY_TIME,n:{x:0,y:0},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
+  newBiscuit();
+  $('gameUI').classList.remove('hidden');$('gameUI').classList.add('counter');$('ratioBox').classList.remove('hidden');ratioUI();
+  $('zoomB').classList.toggle('hidden',!G.up.zoom);$('zoomB').innerHTML='放大<br>1×';
+  $('tip').textContent=gotTilt?'':'没检测到陀螺仪：电脑上用方向键移动针头';
+}
+function ratioUI(){$('rVal').textContent='售价 ×'+G.ratio.toFixed(1)}
+function setRatio(d){G.ratio=Math.min(2,Math.max(0.5,Math.round((G.ratio+d)*10)/10));save();ratioUI()}
+function newBiscuit(){
+  const f=C.cust[0];
+  P.o=f&&f.custom?{custom:{hole:f.hole},forId:f.id}:{};
+  P.tg=[];for(let r=0;r<2;r++)for(let c=0;c<3;c++)P.tg.push({x:-24+c*24,y:-9+r*18,r:5});
+  P.holes=[];P.wrong=0;P.done=false;
+}
+function say(t,s=2.5){C.log=t;C.logT=s}
+function pop(c,emo){C.pops.push({id:c.id,slot:C.cust.indexOf(c),emo,t:1.6})}
+function leave(c){C.cust.splice(C.cust.indexOf(c),1)}
+function sellTo(c,item){const p=Math.round(item.v*G.ratio),[e,t]=reaction(G.ratio);
+  D.orders++;D.rev+=p;G.coins+=p;if(G.ratio<0.8)D.best=Math.max(D.best,4);G.rep+=G.ratio<0.8?1:0;
+  pop(c,e);say(`${c.who} ${e} ${t}，付 ${p} 金币`);leave(c);hud()}
+function deliver(res){
+  D.mat+=5;const t=tierOf(res),st=t>=3?3:t===2?2:t===1?1:0,f=C.cust[0];
+  if(P.o.custom&&f&&f.id===P.o.forId){
+    const v=valueOf(Math.max(1,st),res.acc),T=TIERS[t],pay=t>=2?v*3:t===1?v:0,tip=Math.round(pay*(T.tip||0));
+    D.orders++;D.rev+=pay+tip;D.tips+=tip;if(t===0)D.angry++;D.best=Math.max(D.best,t);G.coins+=pay+tip;G.rep+=T.rep;
+    pop(f,t===4?'LAUGH':T.emo);say(`定制单 · ${T.name}：${t?`付 ${pay}${tip?` + 小费 ${tip}`:''} 金币`:'一分不给'}`,3);leave(f);
+  }else if(!st)say('饼干裂了 💥 这块卖不了');
+  else{const item={st,v:valueOf(st,res.acc)};
+    if(f&&!f.custom){const r=G.ratio;
+      if(r<1.1||(r<1.4&&Math.random()<0.5))sellTo(f,item);
+      else if(r>=1.4){pop(f,'😤');say(`${f.who} 😤 ${Math.round(item.v*r)} 金币？嫌贵走掉了`);leave(f);C.shelf.push(item)}
+      else{pop(f,'🤔');say(`${f.who} 🤔 犹豫了…先放货架`);C.shelf.push(item)}}
+    else{C.shelf.push(item);say(f?`${f.who}：这不是我要的定制饼干！先放货架`:`上货架：${stars(st)} 估值 ${item.v}`)}}
+  save();hud();newBiscuit();
+}
+function counterTick(dt){
+  C.t+=dt;C.logT-=dt;G.clock=SESS_START[G.sess]+240*Math.min(1,C.t/DAY_TIME);C.pops.forEach(p=>p.t-=dt);C.pops=C.pops.filter(p=>p.t>0);
+  const r=G.ratio;
+  C.next-=dt;
+  if(C.next<=0&&C.cust.length<3){
+    const custom=Math.random()<0.22&&!C.cust.some(c=>c.custom),pat=16+Math.random()*6;
+    C.cust.push({id:++custId,who:who(),custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],pat,max:pat});
+    C.next=(3+Math.random()*3)*Math.max(0.6,r)/(1+0.25*G.up.bell)/(1+Math.max(0,G.rep)*0.03); // 占位：便宜客人来得勤
+    if(P.o&&!P.o.custom&&C.cust[0].custom&&!P.holes.length)newBiscuit();
+  }
+  // 货架：便宜卖得快、贵了卖得慢（公式待定，这里是占位）
+  if(C.shelf.length){const c=C.cust.find(c=>!c.custom);
+    if(c&&Math.random()<dt*0.9/Math.pow(r,3)){C.shelf.sort((a,b)=>b.v-a.v);sellTo(c,C.shelf.shift())}}
+  C.cust.slice().forEach(c=>{c.pat-=dt;if(c.pat<=0){pop(c,'😡');say(`${c.who} 😡 等太久走了`);D.angry++;G.rep-=1;leave(c);hud()}});
+  if(C.t>=DAY_TIME)endCounter();
+}
+function endCounter(){
+  const left=C.shelf.length;C.shelf=[];P=null;scene='town';
+  $('gameUI').classList.add('hidden');$('gameUI').classList.remove('counter');$('ratioBox').classList.add('hidden');$('tip').textContent='';$('lockB').classList.remove('on');
+  G.clock=SESS_START[G.sess]+240;
+  msg(G.sess?'下午打烊':'上午收摊',left?`货架上还剩 ${left} 块没卖掉，收摊清掉了（不留到下一场）。`:'货架清空了！','好',endSession);
+}
+const SLOT=i=>Math.round(LW*(0.2+0.3*i));
+function drawCounterBand(){
+  const bandH=Math.round(LH*0.32),sc=Math.max(1,bandH/28);
+  for(let y=0;y<bandH;y+=6)R(0,y,LW,6,(y/6)%2?'#f3dcb0':'#ecd2a2');
+  R(0,bandH,LW,4,'#a0682e');R(0,bandH,LW,1,'#c98a48');R(0,bandH+4,LW,1,'#6a3d12');
+  C.cust.forEach((c,i)=>{const x=SLOT(i),fy=bandH-1;
+    nailong(x,fy,0,C.t+i,sc,false);
+    if(i===0){R(x-2,fy-21*sc,5,2,'#c4473a');R(x-1,fy-19*sc,3,2,'#c4473a')}
+    const bx=x+7*sc,by=Math.max(2,fy-22*sc),bw=Math.round(13*sc),bh=Math.round(9*sc);
+    R(bx,by,bw,bh,'#fff8e6');R(bx,by+bh,bw,1,'#0e0a18');R(bx-2,by+bh-3,2,2,'#fff8e6');
+    if(!c.custom){R(bx+2,by+2,bw-4,bh-4,'#e8b46a');for(let k=0;k<3;k++)R(bx+3+k*Math.round((bw-6)/2),by+Math.round(bh/2)-1,1,1,'#7a4a1a')}
+    else R(bx,by,bw,2,'#ff5fa2');
+    const pw=Math.round(12*sc);R(x-pw/2,fy+1,pw,2,'#0e0a18');R(x-pw/2,fy+1,Math.round(pw*Math.max(0,c.pat/c.max)),2,c.pat/c.max<0.3?'#ff5f5f':'#7fdc6e')});
+  return bandH;
+}
+function counterHud(){
+  const k=S*DPR,bandH=Math.round(LH*0.32);ctx.save();ctx.textBaseline='middle';ctx.textAlign='center';
+  C.cust.forEach((c,i)=>{if(!c.custom)return;const x=SLOT(i),sc=Math.max(1,bandH/28),bx=x+7*sc,by=Math.max(2,bandH-1-22*sc);
+    ctx.font=`900 ${Math.round(3.2*sc*k)}px -apple-system,"PingFang SC",sans-serif`;ctx.fillStyle='#2b1f45';
+    ctx.fillText(c.hole+'孔★★★',(bx+6.5*sc)*k,(by+5*sc)*k)});
+  C.pops.forEach(p=>{const i=C.cust.findIndex(c=>c.id===p.id),slot=i>=0?i:p.slot,x=SLOT(slot)*k,y=(bandH*0.35-(1.6-p.t)*6)*k;
+    ctx.globalAlpha=Math.min(1,p.t*2);
+    if(p.emo==='LAUGH'){ctx.font=`900 ${16*DPR}px sans-serif`;ctx.fillStyle='#ffd23f';ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText('奶龙大笑 哈哈哈！',x,y);ctx.fillText('奶龙大笑 哈哈哈！',x,y)}
+    else{ctx.font=`${30*DPR}px sans-serif`;ctx.fillText(p.emo,x,y)}});
+  ctx.globalAlpha=1;ctx.textAlign='left';
+  const done=P.tg.filter(t=>t.hit).length,left=Math.max(0,Math.ceil(DAY_TIME-C.t));
+  const line1=`🕘 ${fmtClock(G.clock)}  剩 ${left} 秒   金币 ${G.coins}   货架 ${C.shelf.length} 块`,line2=`${P.o.custom?'定制：'+P.o.custom.hole+'孔 ★★★':'普通饼干'} ${done}/${P.tg.length} 扎歪 ${P.wrong}`;
+  ctx.font=`900 ${13*DPR}px -apple-system,"PingFang SC",sans-serif`;ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.fillStyle='#fff8e6';
+  const y0=(bandH+5)*k+12*DPR;
+  [line1,line2].forEach((t,i)=>{ctx.strokeText(t,10*DPR,y0+i*17*DPR);ctx.fillText(t,10*DPR,y0+i*17*DPR)});
+  if(C.logT>0){ctx.textAlign='center';ctx.fillStyle='#ffd23f';const y=(bandH+5)*k+48*DPR;ctx.strokeText(C.log,cv.width/2,y);ctx.fillText(C.log,cv.width/2,y)}
+  ctx.restore();
 }
 function custHead(o,line){return `<h2>${SHOPS[shop].name}</h2>
   <canvas id="cust" width="48" height="40" style="width:144px;height:120px;image-rendering:pixelated"></canvas><br><span class="bubble">${o.who}：${line}</span>`}
-function nextCustomer(){
-  if(!queue.length)return shop==='biscuit'?openStall():closeShop();
-  const o=queue[0];
-  if(o.type==='pickup'){
-    show(custHead(o,`我昨天定的${o.hole}形孔饼干好了吗？`)+`<div class="row"><button class="px" id="gB">交货</button></div>`);
-    drawCust($('cust'),0);bind('gB',()=>{queue.shift();const b=SHOPS.biscuit.base;
-      const t=o.tier,pay=t>=2?b*3:t===1?b:0;settle(t,pay,'定制单：做得好付 3 倍价。')});return;
-  }
-  show(custHead(o,`定制：全部扎${o.hole}形孔，要 ★★★，明天我来拿！`)+`<p>接单后今晚先做这块，明天客人来取。</p><div class="row"><button class="px" id="gB">接单</button><button class="px gray" id="nB">不接</button></div>`);
-  drawCust($('cust'),0);
-  bind('gB',()=>{queue.shift();G.customs.push({who:o.who,hole:o.hole});save();toast('接了定制单，今晚先做');nextCustomer()});
-  bind('nB',()=>{queue.shift();nextCustomer()});
-}
-const STALL_TIME=30;
-function ratioText(r){const p=Math.round(r*100);return p===100?'按估值':p<100?`低 ${100-p}% · 卖得快`:`高 ${p-100}% · 卖得慢`}
-function openStall(){
-  if(!G.stock.length){msg('摆摊','货架是空的，今天没东西卖。晚上多做点。','打烊',closeShop);return}
-  stall={t:0,running:false,log:'先调价，再开摊。'};
-  G.stock.forEach(s=>{s.prog=0;s.sold=false;if(!s.p)s.p=s.v});
-  const rows=G.stock.map((s,i)=>`<div class="up" id="row${i}"><div style="flex:1"><b>${stars(s.st)}</b> 估值 ${s.v}${s.nights?' · 隔夜':''}<br>
-    <span id="rt${i}" style="font-size:12px;color:#a99cc6"></span><div style="height:6px;background:#0e0a18;margin-top:4px"><div id="pg${i}" style="height:6px;width:0;background:#ffd23f"></div></div></div>
-    <button class="px gray" data-d="${i}" data-k="-1" style="padding:6px 10px">−</button><b id="pr${i}" style="min-width:40px;text-align:center;font-size:16px"></b><button class="px gray" data-d="${i}" data-k="1" style="padding:6px 10px">＋</button></div>`).join('');
-  show(`<h2>饼干摊 · <span id="stT">${STALL_TIME}</span> 秒</h2>
-    <p>每块饼干晚上按评分估了价。售价<b>低于估值卖得快</b>，<b>高于估值卖得慢</b>，开摊后也能随时调。</p>
-    <div class="row" style="margin-top:4px"><button class="px blue" id="all8" style="padding:6px 10px">全部 8 折</button><button class="px blue" id="all10" style="padding:6px 10px">按估值</button><button class="px blue" id="all13" style="padding:6px 10px">全部 1.3 倍</button></div>
-    ${rows}<p id="stLog" style="text-align:center;min-height:22px"></p>
-    <div class="row"><button class="px" id="stGo">开摊</button></div>`);
-  const setAll=k=>{G.stock.forEach(s=>{if(!s.sold)s.p=Math.max(1,Math.round(s.v*k))});stallUI()};
-  bind('all8',()=>setAll(0.8));bind('all10',()=>setAll(1));bind('all13',()=>setAll(1.3));
-  document.querySelectorAll('[data-d]').forEach(el=>el.onclick=()=>{const s=G.stock[+el.dataset.d];if(s.sold)return;
-    const step=Math.max(1,Math.round(s.v*0.1));s.p=Math.max(1,Math.min(s.v*3,s.p+step*(+el.dataset.k)));stallUI()});
-  bind('stGo',()=>{if(stall.running)return;stall.running=true;$('stGo').textContent='营业中…';$('stGo').disabled=true;stall.last=performance.now();stall.h=setInterval(stallTick,100)});
-  stallUI();
-}
-function stallUI(){
-  G.stock.forEach((s,i)=>{const r=s.p/s.v;$('pr'+i).textContent=s.p;
-    $('rt'+i).textContent=s.sold?'已卖出 ✓':ratioText(r);$('rt'+i).style.color=s.sold?'#7fdc6e':r<0.95?'#7fdc6e':r>1.05?'#ff9a8a':'#a99cc6';
-    $('pg'+i).style.width=Math.min(100,s.prog*100)+'%';$('row'+i).style.opacity=s.sold?0.45:1});
-  $('stT').textContent=Math.max(0,Math.ceil(STALL_TIME-stall.t));$('stLog').textContent=stall.log;
-}
-function stallTick(){
-  if(!$('stT')){clearInterval(stall.h);return}
-  const now=performance.now(),dt=Math.min(0.3,(now-stall.last)/1000);stall.last=now;stall.t+=dt;
-  const crowd=1+Math.max(0,G.rep)*0.03;
-  G.stock.forEach(s=>{if(s.sold)return;const r=s.p/s.v;
-    s.prog+=dt*crowd*(0.6+Math.random()*0.8)/(5*Math.pow(r,3));
-    if(s.prog>=1){s.sold=true;s.prog=1;
-      const t=r<0.7?4:r<0.9?3:r<=1.1?2:1,T=TIERS[t];
-      D.orders++;D.rev+=s.p;D.best=Math.max(D.best,t===1?2:t);G.coins+=s.p;hud();
-      stall.log=`${who()} 买走 ${stars(s.st)}，付 ${s.p} 金币 ${t===4?'😆 哈哈捡到便宜！':t===1?'😮‍💨 好贵…还是买了':T.emo}`}
-    else if(r>1.3&&Math.random()<dt*0.25)stall.log=`${who()}：${s.p} 金币？🤣👉🏻🤡 抢钱啊！`});
-  stallUI();
-  if(stall.t>=STALL_TIME||G.stock.every(s=>s.sold)){clearInterval(stall.h);
-    const left=G.stock.filter(s=>!s.sold).length;G.stock=G.stock.filter(s=>!s.sold);save();
-    msg('收摊',`卖出 ${D.orders} 块，进账 ${D.rev} 金币。${left?`剩 ${left} 块，明天估值打 7 折，放两晚就扔。`:'全卖光了！'}`,'打烊',closeShop)}
-}
-function drawCust(c,mood){ // reuse the sprite helper on a small canvas
+function drawCust(c,mood,needle=false){ // reuse the sprite helper on a small canvas
   const t2=c.getContext('2d');t2.clearRect(0,0,48,40);
   const keep=R;R=(x,y,w,h,col)=>{t2.fillStyle=col;t2.fillRect(Math.round(x),Math.round(y),w,h)};
   t2.fillStyle='#1d1530';t2.fillRect(0,32,48,8);
-  nailong(24,34,mood,performance.now()/1000,1.4);R=keep;}
+  nailong(24,34,mood,0,1.4,needle);R=keep;}
 function closeShop(){
   const mat=D.mat,rent=15,prof=D.rev-mat-rent;
   const e=EDICTS[G.edict],ok=e.ok(D),bonus=ok?e.r:0;
-  G.coins+=bonus-mat-rent;save();hud();
+  G.coins+=bonus-mat-rent;G.phase='night';G.clock=19*60;save();hud();
   show(`<h2>打烊 · 第 ${G.day} 天账本</h2><table class="ledger">
     <tr><td>营业额（${D.orders} 单）</td><td>+${D.rev}</td></tr><tr><td>其中小费</td><td>${D.tips}</td></tr>
-    <tr><td>原料（昨晚每块 5）</td><td>−${mat}</td></tr><tr><td>房租水电</td><td>−${rent}</td></tr>
+    <tr><td>原料（每块 5）</td><td>−${mat}</td></tr><tr><td>房租水电</td><td>−${rent}</td></tr>
     <tr><td>上帝旨意：${e.t}</td><td>${ok?'+'+bonus+' ✓':'没完成'}</td></tr>
     <tr><td><b>今日利润</b></td><td><b>${prof+bonus}</b></td></tr></table>
-    <p>现在有 <b>${G.coins}</b> 金币，货架剩 ${G.stock.length} 块${G.customs.length?`，今晚要做 ${G.customs.length} 张定制单`:''}。回主角家祈祷升级、睡觉。</p>
-    <div class="row"><button class="px" id="homeB">回家</button></div>`);
-  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+7;me.goal='home'});
+    <p>天黑了，店都关门了。现在有 <b>${G.coins}</b> 金币。可以在镇上找奶龙聊天，或者回家升级、睡觉。</p>
+    <div class="row"><button class="px" id="homeB">回家</button><button class="px gray" id="walkB">在镇上逛逛</button></div>`);
+  bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+5;me.goal='home'});bind('walkB',()=>{hide();scene='town'});
 }
 
 // ---------- day: hair / tattoo, punched on the spot ----------
@@ -390,7 +533,7 @@ function startSpot(k){
   nextSpot();
 }
 function nextSpot(){
-  if(!queue.length)return closeShop();
+  if(!queue.length){G.clock=SESS_START[G.sess]+240;return endSession()}
   const o=queue[0],line=shop==='hair'?(o.custom?'定制：发际线往前挪 2 厘米，一根都不能歪。':'帮我种点头发，秃得发亮了。'):(o.custom?'定制：纹一颗心，要和上帝的旨意一样圆满。':'随便纹个爱心吧。');
   show(custHead(o,line)+`<p>${o.custom?'<b>定制</b>：做得好付 3 倍价，做砸了可能一分不给。':'按做得好坏付钱。'}</p><div class="row"><button class="px" id="takeB">请坐，开扎</button></div>`);
   drawCust($('cust'),0);bind('takeB',()=>startPunch(o));
@@ -420,7 +563,7 @@ function settle(t,pay,line){
     <p>${t===0?'客人一分钱没给，口碑 −3。':`收入 ${pay} 金币${tip?`，小费 ${tip}`:''}；口碑 ${T.rep>=0?'+':''}${T.rep}。`}</p>
     <div class="row"><button class="px" id="nB">${queue.length?'下一位':'打烊'}</button></div>`);
   if(t===4){const c=$('cust');const an=()=>{if(!c.isConnected)return;drawCust(c,1);requestAnimationFrame(an)};an()}
-  bind('nB',shop==='biscuit'?nextCustomer:nextSpot);
+  bind('nB',nextSpot);
 }
 
 // ---------- gyro ----------
@@ -449,7 +592,7 @@ async function startPunch(o){
   if(kind==='biscuit'){for(let r=0;r<2;r++)for(let c=0;c<3;c++)tg.push({x:-24+c*24,y:-9+r*18,r:5})}
   else if(kind==='hair'){for(let r=0;r<2;r++)for(let c=0;c<5;c++)tg.push({x:-24+c*12+(r?6:0),y:-14+r*9,r:3})}
   else{for(let i=0;i<8;i++){const a=i/8*Math.PI*2,x=16*Math.pow(Math.sin(a),3),y=-(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a));tg.push({x:x*1.4,y:y*1.4-2,r:3.5})}}
-  P={o,kind,tg,holes:[],wrong:0,t:0,limit:kind==='tattoo'?25:20,n:{x:-40,y:20},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
+  P={o,kind,tg,holes:[],wrong:0,t:0,limit:(kind==='tattoo'?25:20)+5*G.up.night,n:{x:-40,y:20},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
   $('gameUI').classList.remove('hidden');
   $('zoomB').classList.toggle('hidden',!G.up.zoom);$('zoomB').innerHTML='放大<br>1×';
   $('tip').textContent=gotTilt?'倾斜手机移动针头，按住「固定」稳住，点「打孔」扎下':'没检测到陀螺仪：电脑上用方向键移动针头（手机请用 https 打开并允许陀螺仪）';
@@ -460,6 +603,8 @@ $('lockB').addEventListener('pointerdown',lockDown);$('lockB').addEventListener(
 $('zoomB').onclick=()=>{if(!P)return;const max=1+G.up.zoom;P.zoom=P.zoom>=max?1:P.zoom+1;$('zoomB').innerHTML='放大<br>'+P.zoom+'×'};
 $('punchB').addEventListener('pointerdown',e=>{e.preventDefault();punch()});
 $('giveupB').onclick=()=>finishPunch();
+$('dlg').addEventListener('pointerdown',e=>{e.preventDefault();dlgNext()});
+$('rDn').onclick=()=>setRatio(-0.1);$('rUp').onclick=()=>setRatio(0.1);
 function onObject(x,y){const k=P.kind;
   if(k==='biscuit')return Math.abs(x)<42&&Math.abs(y)<25;
   if(k==='hair')return (x*x)/(40*40)+(y+4)*(y+4)/(28*28)<1;
@@ -478,11 +623,12 @@ function finishPunch(){
   if(!P||P.done)return;P.done=true;
   const hit=P.tg.filter(t=>t.hit),acc=hit.length?hit.reduce((s,t)=>s+t.acc,0)/hit.length:0;
   const res={hit:hit.length,total:P.tg.length,missed:P.tg.length-hit.length,wrong:P.wrong,acc};
+  if(P.counter)return deliver(res);
   $('gameUI').classList.add('hidden');$('tip').textContent='';$('lockB').classList.remove('on');
-  const o=P.o;scene='town';P=null;o.mode==='night'?nightResult(o,res):spotResult(o,res);
+  const o=P.o;scene='town';P=null;spotResult(o,res);
 }
 function drawPunch(dt){
-  P.t+=dt;if(P.t>=P.limit)finishPunch();if(!P)return;
+  if(P.counter){counterTick(dt);if(!P)return}else{P.t+=dt;if(P.t>=P.limit)finishPunch();if(!P)return}
   // move needle
   let ax=tiltAxis(raw.x-base.x,TUNE.invX),ay=tiltAxis(raw.y-base.y,TUNE.invY);
   if(keys.ArrowLeft)ax=-1;if(keys.ArrowRight)ax=1;if(keys.ArrowUp)ay=-1;if(keys.ArrowDown)ay=1;
@@ -494,7 +640,8 @@ function drawPunch(dt){
   if(P.lock){const dx=P.n.x-P.lock.x,dy=P.n.y-P.lock.y,d=Math.hypot(dx,dy),m=5;if(d>m){P.n.x=P.lock.x+dx/d*m;P.n.y=P.lock.y+dy/d*m}}
   P.n.x=Math.max(-60,Math.min(60,P.n.x));P.n.y=Math.max(-40,Math.min(40,P.n.y));
   // scene
-  const z=P.zoom,cx=LW/2,cy=LH/2,s=Math.max(1,Math.min(LW/120,LH/80))*z;
+  const z=P.zoom,band=P.counter?Math.round(LH*0.32)+5:0,cx=P.counter?Math.round(LW*0.42):LW/2,cy=P.counter?band+(LH-band)/2:LH/2,
+    s=(P.counter?Math.max(0.8,Math.min(LW*0.6/96,(LH-band-6)/58)):Math.max(1,Math.min(LW/120,LH/80)))*z;
   const ox=z>1?-P.n.x*s:0,oy=z>1?-P.n.y*s:0;
   const W=(x,y)=>[cx+ox+x*s,cy+oy+y*s];
   const bg={biscuit:['#3a2b52','#46356a'],hair:['#2f4a5e','#385a70'],tattoo:['#2a1f3a','#352848']}[P.kind];
@@ -508,7 +655,7 @@ function drawPunch(dt){
   // targets
   P.tg.forEach(t=>{if(t.hit)return;const [a,b]=W(t.x,t.y),r=t.r*s;
     lx.fillStyle='#ffffffcc';for(let i=0;i<16;i+=2){const an=i/16*Math.PI*2+P.t;lx.fillRect(Math.round(a+Math.cos(an)*r),Math.round(b+Math.sin(an)*r),Math.max(1,s/2|0),Math.max(1,s/2|0))}
-    if(P.kind==='biscuit'&&P.o.custom){lx.fillStyle='#ffd23f';lx.font=`${Math.max(6,Math.round(r))}px sans-serif`;lx.textAlign='center';lx.textBaseline='middle';lx.fillText(P.o.custom.hole,a,b)}});
+    if(P.kind==='biscuit'&&P.o.custom){lx.fillStyle='#ffd23f';lx.font=`${Math.max(6,Math.round(r))}px sans-serif`;lx.textAlign='center';lx.textBaseline='middle';lx.fillText(P.o.custom&&P.o.custom.hole||'',a,b)}});
   // holes
   if(P.kind==='tattoo'){const ok=P.holes.filter(h=>h.ok);lx.strokeStyle='#2b1f45';lx.lineWidth=Math.max(1,s*0.8);lx.beginPath();ok.forEach((h,i)=>{const [a,b]=W(h.x,h.y);i?lx.lineTo(a,b):lx.moveTo(a,b)});lx.stroke()}
   P.holes.forEach(h=>{const [a,b]=W(h.x,h.y),r=Math.max(1,Math.round(1.6*s));
@@ -520,9 +667,10 @@ function drawPunch(dt){
   lx.strokeStyle='#ffd23f';lx.lineWidth=Math.max(1,s/2|0);lx.beginPath();lx.arc(Math.round(na),Math.round(nb),nr,0,7);lx.stroke();
   R(na,nb,1,1,'#fff');
   R(na+nr,nb-nr-14*Math.min(2,s/2),Math.max(2,s),14*Math.min(2,s/2),'#c9d2e0');
+  if(P.counter)drawCounterBand();
 }
 function punchHud(){
-  if(!P)return;ctx.save();const fs=14*DPR;ctx.font=`900 ${fs}px -apple-system,"PingFang SC",sans-serif`;ctx.textBaseline='top';
+  if(!P)return;if(P.counter)return counterHud();ctx.save();const fs=14*DPR;ctx.font=`900 ${fs}px -apple-system,"PingFang SC",sans-serif`;ctx.textBaseline='top';
   const left=Math.ceil(P.limit-P.t),done=P.tg.filter(t=>t.hit).length;
   const t=`${SHOPS[P.kind].name}${P.o.custom?' · 定制单':''}   剩 ${left} 秒   ${done}/${P.tg.length}   扎歪 ${P.wrong}`;
   ctx.lineWidth=4*DPR;ctx.strokeStyle='#0e0a18';ctx.strokeText(t,10*DPR,10*DPR);ctx.fillStyle='#fff8e6';ctx.fillText(t,10*DPR,10*DPR);ctx.restore();
@@ -533,11 +681,11 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   lx.clearRect(0,0,LW,LH);
-  if(scene==='punch'&&P)drawPunch(dt);else drawTown(dt);
+  if(scene==='punch'&&P)drawPunch(dt);else if(scene==='home')drawHome(dt);else drawTown(dt);
   ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,cv.width,cv.height);
   ctx.drawImage(lc,0,0,LW*S*DPR,LH*S*DPR);
   $('hud').style.display=scene==='punch'?'none':'flex';
-  if(scene==='town')townLabels();else punchHud();
+  if(scene==='town')townLabels();else if(scene==='home')homeLabels();else punchHud();
   requestAnimationFrame(frame);
 }
 resize();hud();welcome();requestAnimationFrame(frame);
