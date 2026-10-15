@@ -140,8 +140,8 @@ function hud(){setClock(G.clock);$('hDay').textContent=G.day;$('hCoin').textCont
 function toast(t,s=1.2){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,s*1000)}
 
 // ---------- 像素角色图（策划案/像素角色，原尺寸 PNG，最近邻放大） ----------
-const SPR={};['needle','god','redbaby','dog'].forEach(k=>{const im=new Image();im.src='img/'+k+'.png';SPR[k]=im});
-const NPC_KINDS=['redbaby','dog'],KIND_NAME={redbaby:'红温奶娃',dog:'奶狗'};
+const SPR={};['needle','god','redbaby','dog','nailong'].forEach(k=>{const im=new Image();im.src='img/'+k+'.png';SPR[k]=im});
+const NPC_KINDS=['redbaby','dog'],KIND_NAME={redbaby:'红温奶娃',dog:'奶狗',nailong:'奶龙'}; // nailong = 通用奶龙（NPC 6000），没单独设计的路人和普通顾客都用它
 // 时间写在颜色里：早上偏暖，17 点后橙红，19 点后压暗
 function tintAt(m){return m>=19*60?['#0b0b3a',0.55]:m>=17*60?['#FF5A1F',0.26]:m<10*60?['#FFB347',0.07]:null}
 const tintCache={};
@@ -187,7 +187,9 @@ const MP={
   trees:[[45,132],[305,128],[775,142],[535,272],[325,282],[55,282],[785,282],[350,104],[515,110],[90,170],[820,170],[750,104]],
   board:[400,160,40,30],exit:[0,176,46,40],
   // 每个 NPC 只在自己的范围里闲逛（范围框游戏里不显示）。照抄 NPC设计.xlsx v002 · NPCConfig 的 WanderRect（x|y|宽|高）和 WanderSpeed（像素/秒）
-  zones:[['redbaby',446,206,136,96,18],['dog',226,98,124,80,24]],
+  zones:[['redbaby',446,206,136,96,18],['dog',226,98,124,80,24],
+    // 通用奶龙路人（6000），同时可以有好几只；范围先按路边空地摆，正式数值待 NPCConfig 补
+    ['nailong',50,196,140,44,20],['nailong',320,196,80,70,20],['nailong',680,196,150,50,20],['nailong',250,282,110,40,20],['nailong',500,290,120,30,20]],
 };
 function layoutMap(){
   const kx=LW/844,ky=LH/390,X=x=>x*kx,Y=y=>y*ky;MAP={map:true,kx,ky,X,Y,x:0,y:0,w:LW,h:LH};HL=null;
@@ -250,7 +252,7 @@ function layoutTown(){
   deco.sort((a,b)=>a.y-b.y);
   // townsfolk wandering around, as in the sketch
   const spot=()=>{for(let i=0;i<80;i++){const x=MAP.x+8+Math.random()*(MAP.w-16),y=MAP.y+16+Math.random()*(MAP.h-20);if(!inB(x,y,4))return{x,y}}return{x:MAP.x+MAP.w/2,y:MAP.y+MAP.h/2}};
-  npcs=[];for(let i=0;i<9;i++){const p=spot(),q=spot();npcs.push({x:p.x,y:p.y,tx:q.x,ty:q.y,wait:Math.random()*3,spot,kind:NPC_KINDS[i%2]})}
+  npcs=[];for(let i=0;i<9;i++){const p=spot(),q=spot();npcs.push({x:p.x,y:p.y,tx:q.x,ty:q.y,wait:Math.random()*3,spot,kind:i<2?NPC_KINDS[i]:'nailong'})}
   if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+5}
 }
 function tree(x,y){
@@ -318,7 +320,7 @@ function layoutSide(){
   deco=[];for(let i=0;i<=4;i++){const a=i?B[i-1].x+bw/2:0,b=i<4?B[i].x-bw/2:WORLD;
     deco.push({t:'tree',x:Math.round((a+b)/2-6),y:GY-1});if(b-a>30)deco.push({t:'lamp',x:Math.round((a+b)/2+8),y:GY})}
   const spot=()=>({x:6+Math.random()*(WORLD-12),y:GY+3+Math.round(Math.random()*4)});
-  npcs=[];for(let i=0;i<8;i++){const p=spot();npcs.push({x:p.x,y:p.y,tx:spot().x,ty:p.y,wait:Math.random()*3,spot:()=>({x:spot().x,y:p.y}),kind:NPC_KINDS[i%2]})}
+  npcs=[];for(let i=0;i<8;i++){const p=spot();npcs.push({x:p.x,y:p.y,tx:spot().x,ty:p.y,wait:Math.random()*3,spot:()=>({x:spot().x,y:p.y}),kind:i<2?NPC_KINDS[i]:'nailong'})}
   if(!me.goal){me.x=me.tx=B[0].x;}me.y=me.ty=GY+5;
 }
 function drawSide(dt){
@@ -409,7 +411,7 @@ const TALKS_NIGHT=[
 let DLG=null;
 function chat(n){
   const T=(G.phase==='night'?TALKS_NIGHT:TALKS_DAY),t=T[Math.floor(Math.random()*T.length)];
-  DLG={lines:t,i:0,npc:KIND_NAME[n.kind]||'镇民'};
+  DLG={lines:t,i:0,npc:n.kind==='nailong'?(n.name||(n.name=who())):KIND_NAME[n.kind]||'镇民'};
   $('dlg').classList.remove('hidden');drawPortrait($('pL'),'needle');drawPortrait($('pR'),n.kind||'redbaby',true);dlgShow();
 }
 function dlgShow(){const [w,txt]=DLG.lines[DLG.i],mine=w===ME;
@@ -595,8 +597,8 @@ function counterTick(dt){
   C.next-=dt;
   if(C.next<=0&&C.cust.length<3){
     const custom=Math.random()<0.22&&!C.cust.some(c=>c.custom);let pat=(16+Math.random()*6)*(1+[0,.2,.35,.5][aug('preach')]);
-    const kd=NPC_KINDS[Math.floor(Math.random()*2)];pat*={redbaby:0.5,dog:1}[kd]; // NPCConfig · PatienceRate
-    C.cust.push({id:++custId,who:KIND_NAME[kd],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],f:FORCES[1+Math.floor(Math.random()*2)],pat,max:pat,kind:kd});
+    const kd=custom?NPC_KINDS[Math.floor(Math.random()*2)]:'nailong';pat*={redbaby:0.5,dog:1,nailong:1}[kd]; // NPCConfig · PatienceRate
+    C.cust.push({id:++custId,who:kd==='nailong'?who():KIND_NAME[kd],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],f:FORCES[1+Math.floor(Math.random()*2)],pat,max:pat,kind:kd});
     C.next=(3+Math.random()*3)*Math.max(0.6,r)/(1+0.25*G.up.bell)/(1+Math.max(0,G.rep)*0.03); // 占位：便宜客人来得勤
     if(P.o&&!P.o.custom&&C.cust[0].custom&&!P.holes.length)newBiscuit();
   }
