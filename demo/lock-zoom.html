@@ -36,6 +36,7 @@
 <canvas id="c"></canvas>
 <div id="hud"></div>
 <div id="topR"><button class="ghost" id="calB">重新校准</button><button class="ghost" id="tuneB">陀螺仪设置</button></div>
+<div id="eyeR" style="position:fixed;right:10px;top:calc(46px + env(safe-area-inset-top));display:flex;gap:6px"><button class="ghost" id="eye2B"></button><button class="ghost" id="eye3B"></button></div>
 <div id="tip"></div>
 <button id="lockB" class="pad">固定</button>
 <button id="sizeB" class="pad">针头<br>大</button>
@@ -49,6 +50,7 @@
     <p><b>左手「固定」</b>：按住时，针头只能在按下那一刻的位置附近小范围内移动，松开恢复自由。</p>
     <p><b>右手「放大」</b>：点一下切换 1× → 2× → 3×。放大后饼干、目标和针头一起变大（孔在饼干上的大小不变），陀螺仪移动速度降低（2× 为 0.8 倍，3× 为 0.65 倍）。</p>
     <p><b>左手「针头」</b>：点一下切换针头大小 大 → 中 → 小，针头越小孔越小。</p>
+    <p><b>眼花</b>：连续放大太久画面会慢慢变模糊（默认 2× 连续 8 秒、3× 连续 6 秒开始），退回 1× 约 2 秒恢复。右上角可以调秒数。</p>
     <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
     <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
     <button class="btn" id="startBtn">开启陀螺仪并开始</button>
@@ -180,12 +182,31 @@ $('startBtn').onclick=async()=>{
   calibrate();$('startP').classList.add('hidden');newRound();
 };
 
+// ---------- eye strain: staying zoomed in too long blurs the view; back at 1× it clears ----------
+const EYE={t2:8,t3:6,recover:2,ramp:4,maxBlur:7};   // seconds; blur grows over `ramp` s after the threshold
+const EYE_OPT2=[6,8,10,12],EYE_OPT3=[4,6,8,10];
+function syncEye(){$('eye2B').textContent='眼花 2×: '+EYE.t2+'秒';$('eye3B').textContent='3×: '+EYE.t3+'秒'}
+$('eye2B').onclick=()=>{EYE.t2=EYE_OPT2[(EYE_OPT2.indexOf(EYE.t2)+1)%EYE_OPT2.length];syncEye()};
+$('eye3B').onclick=()=>{EYE.t3=EYE_OPT3[(EYE_OPT3.indexOf(EYE.t3)+1)%EYE_OPT3.length];syncEye()};
+syncEye();
+let eye=0,eyeRec=0;            // eye: 0..1 = time used up before blur, >1 = blurring
+function updateEye(dt,z){
+  if(z>1){eye+=dt/(z===2?EYE.t2:EYE.t3);eyeRec=0}
+  else if(eye>0){if(!eyeRec)eyeRec=Math.max(eye,0.01)/EYE.recover;eye=Math.max(0,eye-eyeRec*dt)}
+  eye=Math.min(eye,1+EYE.ramp/Math.min(EYE.t2,EYE.t3));
+  const z2=z>1?(z===2?EYE.t2:EYE.t3):EYE.t2;
+  const b=Math.max(0,eye-1)*z2/EYE.ramp;            // 0..1 blur strength
+  cv.style.filter=b>0?`blur(${(Math.min(1,b)*EYE.maxBlur).toFixed(1)}px) saturate(${(1-0.4*Math.min(1,b)).toFixed(2)})`:'';
+  return b;
+}
+
 // ---------- update ----------
 let nt=0;
 function update(dt){
   if(!S)return;
   S.t+=dt;nt+=dt;if(S.msgT>0)S.msgT-=dt;
   const z=zoom();
+  const blur=updateEye(dt,z);
   if(!S.done){
     const sp=TUNE.speed*ZOOM_SPEED[z];                       // slower when zoomed in
     const gx=tiltAxis(raw.x-base.x,TUNE.invX)*sp,gy=tiltAxis(raw.y-base.y,TUNE.invY)*sp;
@@ -205,7 +226,7 @@ function update(dt){
   // camera: centred at 1×, follows the needle when zoomed in
   const tgt=z===1?{x:0,y:0}:{x:S.nx,y:S.ny};
   const cf=1-Math.exp(-6*dt);S.cam.x+=(tgt.x-S.cam.x)*cf;S.cam.y+=(tgt.y-S.cam.y)*cf;
-  $('hud').innerHTML=`针头 <b>${SIZES[S.si].n}</b> · 放大 <b>${z}×</b> · 速度 ${Math.round(ZOOM_SPEED[z]*100)}% · ${S.lock?'<b>固定中</b>':'自由移动'}`;
+  $('hud').innerHTML=`针头 <b>${SIZES[S.si].n}</b> · 放大 <b>${z}×</b> · 速度 ${Math.round(ZOOM_SPEED[z]*100)}% · ${S.lock?'<b>固定中</b>':'自由移动'} · 眼睛 ${blur>0?'<b style="color:#ff6b5a">眼花了</b>':eye>0?Math.round(Math.max(0,1-eye)*100)+'%':'清醒'}`;
   $('tip').textContent=S.done?'':S.lock?'松开「固定」恢复自由移动':'倾斜手机靠近目标，按住「固定」稳住，再「放大」微调';
 }
 
