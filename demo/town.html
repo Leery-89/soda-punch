@@ -15,7 +15,7 @@
   .chip{background:#3D2A5C;border:3px solid #2B1B3D;box-shadow:inset 0 0 0 2px #5B4580,0 3px 0 #1A1026;padding:3px 9px;font-size:13px;font-weight:700}
   .num{font-family:Silkscreen,monospace;font-weight:400}
   .chip b{color:#ffd23f}
-  #edict{flex-basis:100%;font-size:12px;color:#FFF4D6;box-shadow:0 3px 0 #1A1026}
+  #edict{position:fixed;right:calc(12px + env(safe-area-inset-right));top:calc(6px + env(safe-area-inset-top));font-size:12px;color:#FFF4D6;max-width:46vw}
   .px{background:#FFD23F;color:#2B1B3D;border:4px solid #2B1B3D;box-shadow:inset -4px -4px 0 #D9A400,inset 4px 4px 0 #FFF0A0,0 5px 0 #1A1026;padding:8px 16px;min-height:44px;font-size:18px;font-weight:400;font-family:"ZCOOL KuaiLe","Noto Sans SC",sans-serif;cursor:pointer;white-space:nowrap}
   .px:active{transform:translateY(4px);box-shadow:inset -4px -4px 0 #D9A400,inset 4px 4px 0 #FFF0A0,0 1px 0 #1A1026}
   .px.gray{background:#5B4580;color:#FFF4D6;box-shadow:inset -4px -4px 0 #3D2A5C,inset 4px 4px 0 #8C73B5,0 5px 0 #1A1026}
@@ -136,7 +136,7 @@ function setClock(m){G.clock=m;const h=(m/60)%12,mi=m%60;
   const hand=(id,a,l)=>{const e=$(id);e.setAttribute('x2',10+Math.sin(a)*l);e.setAttribute('y2',10-Math.cos(a)*l)};
   hand('clkH',h/12*Math.PI*2,4.5);hand('clkM',mi/60*Math.PI*2,6.5);$('hTime').textContent=fmtClock(m)}
 function hud(){setClock(G.clock);$('hDay').textContent=G.day;$('hCoin').textContent=G.coins;$('hRep').textContent=G.rep;
-  const e=EDICTS[G.edict];$('edict').textContent=G.phase==='night'?'🌙 晚上店都关门了：点镇上的奶龙聊天，或者回主角家（桌上升级、解锁店铺，床上睡觉）':'✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）　今天还能营业 '+(2-G.sess)+' 次'}
+  $('edict').textContent=G.phase==='night'?'打烊了 · 找镇民聊天，或回家':G.sess===1&&G.clock>=12*60&&G.clock<13*60?'午休 · 13:00 下午场 · 还能营业 1 次':'今天还能营业 '+(2-G.sess)+' 次 · 公告板看旨意'}
 function toast(t,s=1.2){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,s*1000)}
 
 // ---------- 像素角色图（策划案/像素角色，原尺寸 PNG，最近邻放大） ----------
@@ -178,7 +178,53 @@ let B=[],streets=[],deco=[],npcs=[],me={x:30,y:80,tx:30,ty:80,goal:null},townT=0
 const SK_B={home:[158,67,315,206],biscuit:[888,67,315,206],hair:[259,457,315,206],tattoo:[962,457,316,206]};
 const SK_P=[[[473,226],[888,226]],[[316,273],[316,385],[337,385],[337,457]],[[1057,273],[1057,457]],[[574,600],[962,600]]];
 function rnd(seed){let s=seed;return()=>(s=(s*16807)%2147483647)/2147483647}
+// ---------- 横屏小镇地图（画面方案「小镇地图 · 优化后」，844×390 拉满整屏） ----------
+// 上边树林和山崖、下边沙滩和水；弯曲的土路像树枝一样分叉，连到四栋房子、中间的公告板和最左边的出镇路口
+const MP={
+  paths:[[[-10,196],[120,196],['q',160,196,200,186],[420,186],['q',470,186,520,196],[860,196]],
+    [[186,188],[186,140]],[[640,196],['q',640,160,664,140]],[[250,186],['q',240,230,210,316]],[[560,196],['q',600,230,650,316]],[[420,186],[420,330]]],
+  bld:{home:[130,64,112,88],biscuit:[600,58,128,92],hair:[150,238,112,88],tattoo:[600,238,112,88]},
+  trees:[[45,132],[305,128],[775,142],[535,272],[325,282],[55,282],[785,282],[350,104],[515,110],[90,170],[820,170],[750,104]],
+  board:[400,160,40,30],exit:[0,176,46,40],
+  // 每个 NPC 只在自己的范围里闲逛（范围框游戏里不显示）。照抄 NPC设计.xlsx v002 · NPCConfig 的 WanderRect（x|y|宽|高）和 WanderSpeed（像素/秒）
+  zones:[['redbaby',446,206,136,96,18],['dog',226,98,124,80,24]],
+};
+function layoutMap(){
+  const kx=LW/844,ky=LH/390,X=x=>x*kx,Y=y=>y*ky;MAP={map:true,kx,ky,X,Y,x:0,y:0,w:LW,h:LH};HL=null;
+  B=Object.entries(MP.bld).map(([k,[x,y,w,h]])=>({k,x:Math.round(X(x+w/2)),y:Math.round(Y(y+h)),w:Math.round(X(w)),h:Math.round(Y(h))}));
+  streets=[];deco=MP.trees.map(([x,y])=>({t:'tree',x:Math.round(X(x)),y:Math.round(Y(y))}));
+  const [bx,by,bw,bh]=MP.board;deco.push({t:'board',x:Math.round(X(bx+bw/2)),y:Math.round(Y(by+bh+10)),w:Math.round(X(bw)),h:Math.round(Y(bh))});
+  const rand=rnd(11);for(let i=0;i<60;i++){const x=40+rand()*780,y=90+rand()*220;deco.push({t:'flower',x:Math.round(X(x)),y:Math.round(Y(y)),c:['#ff7fa8','#fff4a8','#ffffff','#b48cff'][Math.floor(rand()*4)]})}
+  deco.sort((a,b)=>a.y-b.y);
+  npcs=MP.zones.map(([kind,zx,zy,zw,zh,spd])=>{const spot=()=>({x:X(zx+8+Math.random()*(zw-16)),y:Y(zy+14+Math.random()*(zh-16))}),p=spot(),q=spot();
+    return{x:p.x,y:p.y,tx:q.x,ty:q.y,wait:Math.random()*3,spot,kind,spd:spd*kx}});
+  if(!me.goal){const h=B[0];me.x=me.tx=h.x;me.y=me.ty=h.y+5}
+}
+function drawMapBg(){
+  const {X,Y,kx,ky}=MAP,RR=(x,y,w,h,c)=>R(X(x),Y(y),Math.ceil(X(w)),Math.ceil(Y(h)),c),night=G.clock>=19*60;
+  for(let y=0;y<LH;y+=8)for(let x=0;x<LW;x+=8)R(x,y,8,8,((x+y)/8)%2?'#6DBE45':'#66B541');
+  for(let y=3;y<LH;y+=7)for(let x=(y%2)*4;x<LW;x+=11)R(x,y,1,2,'#5AA83C');
+  // 山崖、瀑布、树林
+  RR(0,0,844,64,'#7A8C8C');RR(0,0,844,10,'#9DB0AE');for(let x=0;x<844;x+=37)RR(x,14+(x*7)%30,18,2,'#6A7A7A');
+  RR(120,0,22,70,'#9FE0F2');RR(126,0,6,70,'#E8FAFF');for(let i=0;i<4;i++)RR(122+((townT*40+i*17)%18),((townT*60+i*19)%60),2,6,'#FFFFFF');RR(112,64,38,8,'#C8F0FA');
+  [[0,44,110,34],[150,48,220,30],[470,46,374,32],[370,56,100,22]].forEach(r=>RR(...r,'#2F7A3A'));
+  [[10,36,28,22],[48,30,34,26],[160,38,30,22],[210,34,36,26],[268,40,30,20],[320,36,34,24],[480,36,32,22],[540,30,36,26],[600,38,30,20],[700,32,36,26],[760,38,30,22],[806,34,38,24]].forEach(r=>{RR(...r,'#3E9A48');RR(r[0]+4,r[1]+3,8,4,'#58B862')});
+  if(!night){const cx=(townT*4)%900;[[430,8,70,14],[442,2,44,8],[640,12,56,12],[650,6,32,8]].forEach(([x,y,w,h])=>RR(((x+cx)%900)-40,y,w,h,'#FFFFFF'))}
+  // 沙滩和水
+  RR(0,326,844,12,'#F2DDA0');RR(0,334,844,56,'#3FA7C9');RR(0,334,300,20,'#F2DDA0');RR(0,352,300,4,'#E8CC88');
+  [[330,350,26],[420,364,30],[560,352,26],[700,368,30],[120,374,30],[240,364,24],[790,356,26]].forEach(([x,y,w],i)=>RR(x+Math.sin(townT*1.5+i)*6,y,w,3,'#8FD8EC'));
+  RR(452,322,16,42,'#8A5A34');RR(436,358,48,10,'#A8703E');RR(436,358,48,2,'#C08A52');
+  // 土路：外圈深、里圈浅
+  const path=(w,c)=>{lx.lineWidth=w*Math.min(kx,ky);lx.strokeStyle=c;lx.lineCap='round';lx.lineJoin='round';
+    MP.paths.forEach(pts=>{lx.beginPath();pts.forEach((p,i)=>{if(p[0]==='q')lx.quadraticCurveTo(X(p[1]),Y(p[2]),X(p[3]),Y(p[4]));else i?lx.lineTo(X(p[0]),Y(p[1])):lx.moveTo(X(p[0]),Y(p[1]))});lx.stroke()})};
+  path(28,'#B8743F');path(20,'#DE9A60');
+  [[300,183],[540,196],[70,194],[740,194],[420,250],[200,230]].forEach(([x,y])=>RR(x,y,6,3,'#C9874E'));
+}
+function noticeBoard(o){const l=o.x-Math.round(o.w/2),t=o.y-o.h-Math.round(o.h*0.33);
+  R(l+Math.round(o.w*0.25),o.y-Math.round(o.h*0.4),2,Math.round(o.h*0.4),'#7A4D2B');R(l+Math.round(o.w*0.7),o.y-Math.round(o.h*0.4),2,Math.round(o.h*0.4),'#7A4D2B');
+  R(l,t,o.w,o.h,'#2B1B3D');R(l+1,t+1,o.w-2,o.h-2,'#C98A4A');for(let i=0;i<3;i++)R(l+3,t+3+i*Math.round(o.h/4),o.w-6-(i%2)*4,Math.max(1,Math.round(o.h/10)),'#FFF4D6');o.box=[l,t,o.w,o.h]}
 function layoutTown(){
+  if(VIEW!=='top'||LW>=LH)return layoutMap();
   const top=Math.ceil(80/S),H=LH-top,land=VIEW==='h'||LW>=LH;
   const MW=land?1400:800,MH=land?800:1400,k=Math.min(LW/MW,H/MH);
   const ox=Math.round((LW-MW*k)/2),oy=top+Math.round((H-MH*k)/2);
@@ -237,17 +283,18 @@ function building(b){
 }
 function drawTown(dt){
   townT+=dt;
+  if(MAP&&MAP.map)drawMapBg();else{
   for(let y=0;y<LH;y+=8)for(let x=0;x<LW;x+=8)R(x,y,8,8,((x+y)/8)%2?'#6cc45a':'#66bd55');
-  for(let y=3;y<LH;y+=7)for(let x=(y%2)*4;x<LW;x+=11)R(x,y,1,2,'#58ad48');
+  for(let y=3;y<LH;y+=7)for(let x=(y%2)*4;x<LW;x+=11)R(x,y,1,2,'#58ad48');}
   streets.forEach(s=>{R(s.x,s.y,s.w,s.h,'#d8c8a0');
     for(let y=s.y;y<s.y+s.h;y+=5)for(let x=s.x+((y-s.y)/5%2)*3;x<s.x+s.w;x+=6)R(x,y,1,1,'#c4b48c')});
   const dx=me.tx-me.x,dy=me.ty-me.y,d=Math.hypot(dx,dy),sp=70*dt,walking=d>sp;
   me.walk=walking;if(walking){me.x+=dx/d*sp;me.y+=dy/d*sp;if(Math.abs(dx)>1)me.dir=Math.sign(dx)}
   else{me.x=me.tx;me.y=me.ty;if(me.goal){const g=me.goal;me.goal=null;enterShop(g)}}
-  npcs.forEach(n=>{if(n.wait>0){n.wait-=dt;return}const ex=n.tx-n.x,ey=n.ty-n.y,e=Math.hypot(ex,ey),v=14*dt;
+  npcs.forEach(n=>{if(n.wait>0){n.wait-=dt;return}const ex=n.tx-n.x,ey=n.ty-n.y,e=Math.hypot(ex,ey),v=(n.spd||14)*dt;
     if(e>v){n.x+=ex/e*v;n.y+=ey/e*v;n.walk=true;if(Math.abs(ex)>1)n.dir=Math.sign(ex)}else{n.walk=false;n.wait=1+Math.random()*3;const q=n.spot();n.tx=q.x;n.ty=q.y}});
   const shadow=(x,y)=>{lx.fillStyle='#0003';lx.beginPath();lx.ellipse(Math.round(x),Math.round(y),6,2,0,0,7);lx.fill()};
-  const items=[...B.map(b=>({y:b.y,f:()=>building(b)})),...deco.map(o=>({y:o.y,f:()=>o.t==='tree'?tree(o.x,o.y):(R(o.x,o.y,1,1,o.c),R(o.x-1,o.y+1,1,1,o.c),R(o.x+1,o.y+1,1,1,o.c),R(o.x,o.y+2,1,1,'#3f9b3a'))})),
+  const items=[...B.map(b=>({y:b.y,f:()=>building(b)})),...deco.map(o=>({y:o.y,f:()=>o.t==='tree'?tree(o.x,o.y):o.t==='board'?noticeBoard(o):(R(o.x,o.y,1,1,o.c),R(o.x-1,o.y+1,1,1,o.c),R(o.x+1,o.y+1,1,1,o.c),R(o.x,o.y+2,1,1,'#3f9b3a'))})),
     ...npcs.map(n=>({y:n.y,f:()=>shadow(n.x,n.y)})),{y:me.y,f:()=>shadow(me.x,me.y)}];
   items.sort((a,b)=>a.y-b.y).forEach(i=>i.f());
   eveningClock(dt);const tn=tintAt(G.clock);
@@ -298,7 +345,17 @@ function drawSide(dt){
   npcs.forEach(n=>shadow(n.x,n.y));shadow(me.x,me.y);
   lx.restore();
 }
+function tag(t,x,y,o={}){const d=DPR;ctx.font=`900 ${(o.fs||12)*d}px "Noto Sans SC",sans-serif`;const w=ctx.measureText(t).width+14*d,h=(o.fs||12)*d+8*d;
+  ctx.fillStyle=o.border||'#FFF4D6';ctx.fillRect(x-w/2,y-h/2,w,h);ctx.fillStyle=o.bg||'#2B1B3D';ctx.fillRect(x-w/2+2*d,y-h/2+2*d,w-4*d,h-4*d);
+  ctx.fillStyle=o.c||'#FFF4D6';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,x,y+d*0.5)}
 function townLabels(){
+  if(MAP&&MAP.map){const k=S*DPR,open=G.phase!=='night'&&G.sess<2;
+    B.forEach(b=>{const x=b.x*k,y=(b.y+3)*k+10*DPR;
+      if(!G.open[b.k])return tag(`${SHOPS[b.k].name} · ${SHOPS[b.k].price}`,x,y);
+      if(b.k==='home')return tag('主角家',x,y);
+      tag(`${b.k==='biscuit'?'饼干店':SHOPS[b.k].name} · ${open?'营业':'已打烊'}`,x,y,open?{bg:'#3E9A48',border:'#2B1B3D',c:'#FFFFFF'}:{})});
+    const bd=deco.find(o=>o.t==='board');if(bd&&bd.box)tag('公告板 · 今日旨意',bd.x*k,(bd.box[1]-4)*k-6*DPR,{bg:'#FFD23F',border:'#2B1B3D',c:'#2B1B3D',fs:10});
+    tag('出镇 ←',MAP.X(30)*k,MAP.Y(196)*k,{bg:'#8A5A34',border:'#2B1B3D',fs:11});return}
   ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
   const fs=Math.max(11,Math.round(S*4));ctx.lineJoin='round';
   ctx.font=`900 ${fs*DPR}px -apple-system,"PingFang SC",sans-serif`;
@@ -314,6 +371,9 @@ cv.addEventListener('pointerdown',e=>{
   const x=e.clientX/S+CAM,y=e.clientY/S,side=VIEW==='side';
   const n=npcs.find(n=>{const h=sprH(n.kind||'redbaby');return Math.abs(n.x-x)<h*0.4&&y>n.y-h&&y<n.y+3});
   if(n){me.tx=n.x+(me.x<n.x?-10:10);me.ty=side?me.y:n.y;me.goal=null;n.wait=4;return chat(n)}
+  if(MAP&&MAP.map){const bd=deco.find(o=>o.t==='board');
+    if(bd&&bd.box&&x>bd.box[0]-3&&x<bd.box[0]+bd.box[2]+3&&y>bd.box[1]-8&&y<bd.y+3){me.tx=bd.x;me.ty=bd.y+4;me.goal='board';return}
+    const [ex,ey,ew,eh]=MP.exit;if(x<MAP.X(ex+ew)&&y>MAP.Y(ey)&&y<MAP.Y(ey+eh)){me.tx=MAP.X(20);me.ty=MAP.Y(198);me.goal='exit';return}}
   const b=B.find(b=>x>b.x-b.w/2-3&&x<b.x+b.w/2+3&&y>b.y-b.h-6&&y<b.y+8);
   if(b){me.tx=b.x;me.ty=b.y+5;me.goal=b.k}
   else if(side){me.tx=Math.max(4,Math.min(WORLD-4,x));me.goal=null}
@@ -363,6 +423,8 @@ function msg(title,text,btn='好',fn=hide){show(`<h2>${title}</h2><p>${text}</p>
 function stars(n){return '★'.repeat(n)+'☆'.repeat(3-n)}
 function enterShop(k){
   if(k==='home')return enterHome();
+  if(k==='board'){const e=EDICTS[G.edict];return msg('公告板 · 今日旨意',`✝ 上帝今日旨意：<b>${e.t}</b>，完成奖励 <b>${e.r}</b> 金币。<br>今天${G.phase==='night'?'的营业已经结束了':'还能营业 <b>'+(2-G.sess)+'</b> 次'}。`)}
+  if(k==='exit')return msg('出镇的路口','往外的路还没修好。正式版里从这里去别的地方（待定）。');
   if(!G.open[k])return msg(`${SHOPS[k].name}（未开张）`,`${SHOPS[k].desc}。回<b>主角家</b>，在桌上的「升级店铺 / 解锁店铺」花 ${SHOPS[k].price} 金币解锁。正式版里还要先打完这家店的一章。`);
   if(G.phase==='night')return msg(SHOPS[k].name,'天黑了，店都关门了。可以在镇上找奶龙聊天，或者回家。');
   if(G.sess>=2)return msg(SHOPS[k].name,'今天两次营业都用完了。');
@@ -532,8 +594,9 @@ function counterTick(dt){
   const r=G.ratio;
   C.next-=dt;
   if(C.next<=0&&C.cust.length<3){
-    const custom=Math.random()<0.22&&!C.cust.some(c=>c.custom),pat=(16+Math.random()*6)*(1+[0,.2,.35,.5][aug('preach')]);
-    const kd=NPC_KINDS[Math.floor(Math.random()*2)];C.cust.push({id:++custId,who:KIND_NAME[kd],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],f:FORCES[1+Math.floor(Math.random()*2)],pat,max:pat,kind:kd});
+    const custom=Math.random()<0.22&&!C.cust.some(c=>c.custom);let pat=(16+Math.random()*6)*(1+[0,.2,.35,.5][aug('preach')]);
+    const kd=NPC_KINDS[Math.floor(Math.random()*2)];pat*={redbaby:0.5,dog:1}[kd]; // NPCConfig · PatienceRate
+    C.cust.push({id:++custId,who:KIND_NAME[kd],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],f:FORCES[1+Math.floor(Math.random()*2)],pat,max:pat,kind:kd});
     C.next=(3+Math.random()*3)*Math.max(0.6,r)/(1+0.25*G.up.bell)/(1+Math.max(0,G.rep)*0.03); // 占位：便宜客人来得勤
     if(P.o&&!P.o.custom&&C.cust[0].custom&&!P.holes.length)newBiscuit();
   }
