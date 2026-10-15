@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;700;900&family=Silkscreen&display=swap" rel="stylesheet">
 <style>
-  /* 只有营业界面：UI 用上一版像素风（e5b7628），打孔区用高清画法（ee802fc / 效果图） */
+  /* 只有营业界面：UI 用上一版像素风（e5b7628），打孔区（传送带、苏打饼、雷霆大针管、扫灰）照第一版 index.html，高清矢量 */
   html,body{margin:0;height:100%;background:#241733;color:#FFF4D6;font-family:"Noto Sans SC",-apple-system,"PingFang SC",sans-serif;overflow:hidden;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
   #c{position:fixed;inset:0;width:100%;height:100%;display:block}
@@ -96,11 +96,14 @@ addEventListener('resize',resize);
 function layout(){
   const u=Math.max(2,Math.floor(Math.min(W,H)/120)),wallH=Math.round(H*0.29),band=Math.round(H*0.34);
   const btnR=SA.l+14+110,lockL=W-SA.r-126-76,leftLim=SA.l+14;
-  const progH=26,progY=H-SA.b-10-progH,logY=progY-13;
-  const xl=btnR+12,xr=lockL-12,top=band+10,bot=logY-16;
-  const k0=Math.max(0.5,Math.min(W*0.37/88,(xr-xl)/88,(bot-top)/54));
-  const cx=Math.max(xl+44*k0,Math.min(xr-44*k0,W*0.48)),cy=Math.round((top+bot)/2);
-  return{u,wallH,band,lockL,leftLim,progH,progY,logY,k0,cx,cy};
+  const progH=26,progY=H-SA.b-10-progH;
+  // 传送带（第一版 index.html）：上面的黄黑警示条贴着柜台下沿，下面的停在底部进度条上面；cs = 第一版的 1 个单位占几个 CSS 像素
+  const cs=Math.max(0.5,H*0.0017),hz=Math.round(14*cs),rl=Math.round(22*cs),rubT=band+hz+rl,rubB=progY-3-hz-rl;
+  const logY=Math.round(rubB+rl/2); // 提示一行压在下边的钢轨上（在进度条上面）
+  const xl=btnR+12,xr=lockL-12;
+  const k0=Math.max(0.5,Math.min(W*0.37/88,(xr-xl)/88,(rubB-rubT)*0.8/54)); // 饼干占传送带高度的八成（第一版 200/280）
+  const cx=Math.max(xl+44*k0,Math.min(xr-44*k0,W*0.48)),cy=Math.round((rubT+rubB)/2);
+  return{u,wallH,band,lockL,leftLim,progH,progY,logY,k0,cx,cy,cs,hz,rl,rubT,rubB};
 }
 
 // ---------- 存档（只用自己的 key；义体诊所的存档只读） ----------
@@ -149,22 +152,37 @@ function valueOf(st,acc){return Math.round(SHOP_BASE*(0.6+0.4*st)*(0.8+0.4*acc)*
 
 let C=null,P=null,D=null,custId=0,running=false,starting=false;
 G.clock=SESS_START[G.half];
-function newP(){return{o:{},tg:[],holes:[],wrong:0,n:{x:0,y:0},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false,belt:0}}
+function newP(){return{o:{},tg:[],holes:[],wrong:0,n:{x:0,y:0},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false,belt:0,
+  cracks:[],salt:[],specks:[],dust:null,kind:'plain',revealed:false,trans:null,plunge:0,bolts:[],shake:0}}
 function idle(){C={t:0,n:0,cust:[],shelf:[],next:0.5,log:'',logT:0,pops:[],half:G.half};P=newP();newBiscuit()}
-function newBiscuit(){
+// slide=true：旧饼干顺着传送带滑走、新的滑进来（第一版 startTrans）；broken=true：旧的裂成两半漂开
+function newBiscuit(slide,broken){
+  if(slide&&running){const span=Math.max(LY.cx,W-LY.cx)+60*view().k+30;
+    if(!P.trans)P.trans={old:{tg:P.tg,holes:P.holes,cracks:P.cracks,salt:P.salt,specks:P.specks,dust:P.dust,kind:P.kind,revealed:P.revealed},p:0,e:0,br:broken?1:0,span};
+    else P.trans.span=Math.max(P.trans.span,span)} // 正在滑的时候又换（定制单客人到了）：旧的照滑，只换新的
   const f=C.cust[0];
   P.o=f&&f.custom?{custom:{hole:f.hole},forId:f.id}:{};
   // 普通饼干黑灰白混着要；定制单 6 个孔同一种力度（显示在客人的订单气泡上）
   const mix=['黑','黑','灰','黑','白','黑'].sort(()=>Math.random()-0.5),cf=P.o.custom?(P.o.custom.f=f.f):null;
   P.tg=[];for(let r=0;r<2;r++)for(let c=0;c<3;c++)P.tg.push({x:-26+c*26,y:-10+r*20,r:5.5,f:cf||mix[r*3+c]});
   P.holes=[];P.wrong=0;P.done=false;P.sealed=false;P.charging=false;C.n=(C.n||0)+1;
+  // 第一版 newCracker：盐粒 / 烤斑每块饼干撒一次，不撒进目标圈
+  const pick=m=>{for(let i=0;i<60;i++){const x=(Math.random()-.5)*88,y=(Math.random()-.5)*54;
+    if(inside(x,y,m)&&!P.tg.some(t=>Math.hypot(t.x-x,t.y-y)<HR+1.2))return{x,y}}return null};
+  P.salt=[];for(let i=0;i<22;i++){const q=pick(6*U);if(q)P.salt.push({...q,r:(1+Math.random()*2.2)*U,a:Math.random()*6})}
+  P.specks=[];for(let i=0;i<80;i++){const q=pick(5*U);if(q)P.specks.push({...q,r:(.6+Math.random()*1.6)*U,d:Math.random()})}
+  P.cracks=[];P.kind='plain';P.revealed=false;P.dust=null;
+  // 扫灰：普通饼干 5% 黄金、3% 翡翠（整块盖满灰），其余 22% 落灰盖住约 55%；定制单的饼干是干净的
+  if(!P.o.custom){const roll=Math.random();if(roll<.05)P.kind='gold';else if(roll<.08)P.kind='jade';
+    if(P.kind!=='plain'||Math.random()<.22)P.dust=makeDust(P.kind!=='plain'?1:.55)}
 }
+function endTrans(){P.trans=null;if(P.dust&&running)toast('这块落了灰，用手指扫一扫',1.3)}
 function say(t,s=2.5){C.log=t;C.logT=s}
 function pop(c,emo){C.pops.push({id:c.id,slot:C.cust.indexOf(c),emo,t:1.6})}
 function leave(c){C.cust.splice(C.cust.indexOf(c),1)}
 function sellTo(c,item){const p=Math.round(item.v*G.ratio),[e,t]=reaction(G.ratio);
   D.orders++;D.rev+=p;G.coins+=p;G.rep+=G.ratio<0.8?1:0;
-  pop(c,e);say(`${c.who} ${e} ${t}，付 ${p} 金币`);leave(c);save()}
+  pop(c,e);say(`${c.who} ${e} ${t}，付 ${p} 金币${item.kn?' · '+item.kn:''}`);leave(c);save()}
 function deliver(res){
   const t=tierOf(res),st=t>=3?3:t===2?2:t===1?1:0,f=C.cust[0];
   if(P.o.custom&&f&&f.id===P.o.forId){
@@ -172,13 +190,14 @@ function deliver(res){
     D.orders++;D.rev+=pay+tip;D.tips+=tip;if(t===0)D.angry++;G.coins+=pay+tip;G.rep+=T.rep;
     pop(f,t===4?'LAUGH':T.emo);say(`定制单 · ${T.name}：${t?`付 ${pay}${tip?` + 小费 ${tip}`:''} 金币`:'一分不给'}`,3);leave(f);
   }else if(!st)say('饼干裂了 💥 这块卖不了');
-  else{const item={st,v:valueOf(st,res.acc)};
+  else{const km=KIND[P.kind]||KIND.plain,item={st,v:valueOf(st,res.acc)*km.mult,kn:km.mult>1?km.name:''}; // 黄金 ×3、翡翠 ×5
+    if(km.mult>1)reveal(true);
     if(f&&!f.custom){const r=G.ratio;
       if(r<1.1||(r<1.4&&Math.random()<0.5))sellTo(f,item);
       else if(r>=1.4){pop(f,'😤');say(`${f.who} 😤 ${Math.round(item.v*r)} 金币？嫌贵走掉了`);leave(f);C.shelf.push(item)}
       else{pop(f,'🤔');say(`${f.who} 🤔 犹豫了…先放货架`);C.shelf.push(item)}}
-    else{C.shelf.push(item);say(f?`${f.who}：这不是我要的定制饼干！先放货架`:`上货架：${stars(st)} 估值 ${item.v}`)}}
-  save();newBiscuit();
+    else{C.shelf.push(item);say(f?`${f.who}：这不是我要的定制饼干！先放货架`:`上货架：${stars(st)} 估值 ${item.v}${item.kn?' · '+item.kn:''}`)}}
+  save();newBiscuit(true,t===0);
 }
 function counterTick(dt){
   C.t+=dt;C.logT-=dt;G.clock=SESS_START[C.half]+240*Math.min(1,C.t/DAY_TIME);C.pops.forEach(p=>p.t-=dt);C.pops=C.pops.filter(p=>p.t>0);
@@ -189,7 +208,7 @@ function counterTick(dt){
     const kd=custom?NPC_KINDS[Math.floor(Math.random()*2)]:'nailong';pat*={redbaby:0.5,dog:1,nailong:1}[kd]; // NPCConfig · PatienceRate
     C.cust.push({id:++custId,who:kd==='nailong'?who():KIND_NAME[kd],custom,hole:HOLES[Math.floor(Math.random()*HOLES.length)],f:FORCES[1+Math.floor(Math.random()*2)],pat,max:pat,kind:kd});
     C.next=(3+Math.random()*3)*Math.max(0.6,r)/(1+Math.max(0,G.rep)*0.03); // 占位：便宜客人来得勤
-    if(P.o&&!P.o.custom&&C.cust[0].custom&&!P.holes.length)newBiscuit();
+    if(P.o&&!P.o.custom&&C.cust[0].custom&&!P.holes.length&&!P.trans&&P.kind==='plain'&&!P.revealed&&(!P.dust||P.dust.every(q=>q.a>=.95)))newBiscuit(true); // 扫过灰 / 开出黄金翡翠的不换
   }
   // 货架：便宜卖得快、贵了卖得慢（公式待定，这里是占位）
   if(C.shelf.length){const c=C.cust.find(c=>!c.custom);
@@ -202,21 +221,22 @@ async function startSession(){
   if(running||starting)return;starting=true;
   try{if(!askedTilt){askedTilt=true;await enableTilt()}}finally{starting=false}
   hide();calibrate();needCal=!gotTilt;if(document.activeElement)document.activeElement.blur();
-  D={orders:0,rev:0,angry:0,tips:0};
+  D={orders:0,rev:0,angry:0,tips:0,gold:0,jade:0};
   C={t:0,n:0,cust:[],shelf:[],next:0.5,log:'开门了！按住「打孔」蓄力：短按白、中按灰、长按黑',logT:5,pops:[],half:G.half};
   if(!gotTilt)C.log=TOUCH?'没检测到陀螺仪：请用 https 打开并允许陀螺仪，再点「重新校准」':'没检测到陀螺仪：电脑用方向键移动、空格键打孔';
   if(!gotTilt)C.logT=6;
-  P=newP();newBiscuit();G.clock=SESS_START[G.half];running=true;
+  P=newP();newBiscuit();G.clock=SESS_START[G.half];running=true;brushes.clear();
+  if(P.dust)toast('这块落了灰，用手指扫一扫',1.3);
   $('zoomB').classList.toggle('hidden',!aug('fireeye'));$('zoomB').innerHTML='放大<br>1×';LY=layout();
 }
 function endSession(){
   running=false;const left=C.shelf.length,half=C.half,day=G.day;C.shelf=[];C.cust=[];C.pops=[];C.logT=0;
-  P.charging=false;P.lock=null;P.zoom=1;$('lockB').classList.remove('on');$('punchB').classList.remove('on');
+  P.charging=false;P.lock=null;P.zoom=1;P.trans=null;brushes.clear();$('lockB').classList.remove('on');$('punchB').classList.remove('on');
   G.clock=SESS_START[half]+240;G.half=half?0:1;if(half)G.day++;save();
   const next=G.half?'下午场 13:00':`第 ${G.day} 天 · 上午场 08:00`;
   show(`<h2>${half?'下午场打烊':'上午场收摊'} · 第 ${day} 天</h2><table class="ledger">
     <tr><td>营业额（${D.orders} 单）</td><td>+${D.rev}</td></tr><tr><td>其中小费</td><td>${D.tips}</td></tr>
-    <tr><td>生气走掉的客人</td><td>${D.angry}</td></tr><tr><td>货架清掉的块数</td><td>${left}</td></tr></table>
+    <tr><td>生气走掉的客人</td><td>${D.angry}</td></tr><tr><td>扫出来的黄金 / 翡翠苏打饼</td><td>${D.gold} · ${D.jade}</td></tr><tr><td>货架清掉的块数</td><td>${left}</td></tr></table>
     <p style="text-align:center">现在有 <b>${G.coins}</b> 金币 · 口碑 <b>${G.rep}</b>${left?' · 没卖掉的饼干收摊清掉了':''}</p>
     <div class="row"><button class="px big" id="againB">再营业一场</button></div><p class="small">下一场：${next}</p>`);
   bind('againB',startSession);
@@ -230,6 +250,7 @@ function startCard(){
   show(`<h2>苏打饼干店 · 营业</h2>
   <p>倾斜手机移动针头对准目标，按住「打孔」蓄力，松手扎下：<b>短按白、中按灰、长按黑</b>。</p>
   <p>打完 6 孔交给<b>最前面</b>的客人（▼）；黄色气泡是定制单，做得好付 3 倍。</p>
+  <p>饼干落了灰扎不进：<b>用手指扫一扫</b>，灰里可能藏着黄金（×3）、翡翠（×5）苏打饼。</p>
   <p>售价 = 估值 × 售价比：<b>低于估值卖得快，高于估值卖得慢</b>，没卖掉的放货架。</p>
   <div class="row"><button class="px gray" id="rM">−</button><b id="rV"></b><button class="px gray" id="rP">＋</button><span id="rH"></span></div>
   <div class="row"><button class="px big" id="openB">开始营业</button></div>
@@ -260,19 +281,22 @@ SodaTune.attach({tilt:()=>({x:raw.x-base.x,y:raw.y-base.y}),calibrate:()=>{calib
 
 // ---------- 打孔 ----------
 function forceOf(t){const m=1-[0,.25,.4,.55][aug('pump')];return t<0.4*m?'白':t<0.9*m?'灰':'黑'}
-function chargeStart(){if(running&&P&&!P.done&&!P.sealed&&!P.charging&&!SodaTune.isOpen()){P.charging=true;P.charge=0;$('punchB').classList.add('on')}}
+function chargeStart(){if(running&&P&&!P.done&&!P.sealed&&!P.charging&&!P.trans&&!SodaTune.isOpen()){P.charging=true;P.charge=0;$('punchB').classList.add('on')}}
 function chargeEnd(){$('punchB').classList.remove('on');if(running&&P&&P.charging){P.charging=false;punch(forceOf(P.charge))}}
 function chargeCancel(){$('punchB').classList.remove('on');if(P)P.charging=false}
 function onObject(x,y){return Math.abs(x)<42&&Math.abs(y)<25}
 function punch(force){
-  if(!P||P.done||P.sealed)return;const {x,y}=P.n;
+  if(!P||P.done||P.sealed||P.trans)return;const {x,y}=P.n;
+  // 灰上扎不进去（第一版）：只提示，不扎
+  if(dustAt(P,x,y)>.45){toast('上面有灰，先用手指把灰扫掉',1);vib([20]);return}
+  P.plunge=1;if(!REDUCE)for(let i=0;i<5;i++)P.bolts.push({a:Math.random()*Math.PI*2,life:1,len:30+Math.random()*30}); // 雷霆大针管：扎下去 + 5 道闪电
   if(!onObject(x,y)){toast('扎到台子上了',0.6);return}
   let best=null,bd=1e9;P.tg.forEach(t=>{if(t.hit)return;const d=Math.hypot(t.x-x,t.y-y);if(d<bd){bd=d;best=t}});
   const hole={x,y,ok:false,f:force};
   if(best&&bd<=best.r+1){best.hit=true;best.acc=Math.max(0,1-bd/(best.r+1));hole.ok=true;
     if(best.f&&force!==best.f){best.acc*=0.4;toast(`力度不对：要${best.f}，扎成了${force}`,0.9)}
     else toast(best.acc>0.85?'完美正中！':best.acc>0.5?'很准':'擦边',0.5)}
-  else{P.wrong++;toast('扎歪了',0.6);if(navigator.vibrate)navigator.vibrate([40,40,40])}
+  else{P.wrong++;toast('扎歪了',0.6);vib([40,40,40]);P.shake=1;P.cracks.push(makeCrack(x,y,HR))} // 扎歪：留孔，还裂一道
   P.holes.push(hole);
   // 6 孔打完：封住这块（不能再扎、交货键不重复交），350ms 后只交这一块
   if(P.tg.every(t=>t.hit)){P.sealed=true;const p=P,n=C.n;setTimeout(()=>{if(running&&P===p&&C.n===n)finishPunch()},350)}
@@ -296,7 +320,8 @@ function moveNeedle(dt){
   P.trem.x+=(Math.random()-0.5)*tr*dt*30;P.trem.y+=(Math.random()-0.5)*tr*dt*30;P.trem.x*=0.92;P.trem.y*=0.92;
   P.n.x+=P.v.x*dt+P.trem.x*dt*6;P.n.y+=P.v.y*dt+P.trem.y*dt*6;
   if(P.lock){const dx=P.n.x-P.lock.x,dy=P.n.y-P.lock.y,d=Math.hypot(dx,dy),m=5;if(d>m){P.n.x=P.lock.x+dx/d*m;P.n.y=P.lock.y+dy/d*m}}
-  P.n.x=Math.max(-60,Math.min(60,P.n.x));P.n.y=Math.max(-40,Math.min(40,P.n.y));
+  const ylim=(LY.rubB-LY.rubT)/2/LY.k0-HR; // 黄圈在 1× 时不出橡胶带（仍盖住整块饼干 ±27）
+  P.n.x=Math.max(-60,Math.min(60,P.n.x));P.n.y=Math.max(-ylim,Math.min(ylim,P.n.y));
 }
 
 // ---------- 按钮 ----------
@@ -314,7 +339,7 @@ $('punchB').addEventListener('pointercancel',chargeCancel);$('punchB').addEventL
 $('zoomB').onclick=()=>{if(!P)return;const max=1+aug('fireeye');P.zoom=P.zoom>=max?1:P.zoom+1;$('zoomB').innerHTML='放大<br>'+P.zoom+'×'};
 $('calB').onclick=async()=>{if(!gotTilt){await enableTilt();if(!gotTilt){needCal=true;toast('还没有陀螺仪数据',1.2);return}}calibrate();toast('已校准',0.8)}; // 没数据时再要一次权限（这是一次点击）
 $('tuneB').onclick=()=>SodaTune.isOpen()?SodaTune.close():SodaTune.open();
-$('giveupB').onclick=()=>{if(!P||!P.sealed)finishPunch()};
+$('giveupB').onclick=()=>{if(P&&P.trans)return;if(!P||!P.sealed)finishPunch()}; // 换饼干滑动中不能交货
 $('rDn').onclick=()=>setRatio(-0.1);$('rUp').onclick=()=>setRatio(0.1);
 
 // ---------- 画面 · 上方：木墙、排队客人、柜台（上一版像素风） ----------
@@ -340,57 +365,200 @@ function drawCounterBand(){
   R(0,wallH,W,band-wallH,'#2B1B3D');R(0,wallH+3,W,band-wallH-6,'#C98A4A');R(0,wallH+3,W,2,'#E0A866');
 }
 
-// ---------- 画面 · 打孔区（高清画法：效果图 / ee802fc 的 counterHud、holeHi） ----------
-const HR=4.6,DEPTH_I={白:0,灰:1,黑:2};
-const SALT=(()=>{const r=rnd(5),a=[];for(let i=0;i<110;i++)a.push({x:-42+r()*84,y:-25+r()*50,r:0.25+r()*0.45});
-  return a.filter(p=>![0,1].some(rr=>[0,1,2].some(c=>Math.hypot(p.x-(-26+c*26),p.y-(-10+rr*20))<HR+0.6+p.r)))})(); // 目标圈里不撒盐
-const HOLE_COL=[['#fbf3e2','#d8b887'],['#6f6a63','#a48b68'],['#050302','#3b2208']];
+// ---------- 画面 · 打孔区：照第一版 index.html（雷霆大针管、波浪边苏打饼、黄黑传送带、扫灰），全部矢量、按 DPR 画 ----------
+// 第一版饼干宽 320 单位，这里 88 单位：U = 0.275，第一版的尺寸都乘 U
+const U=0.275,HR=4.6,DEPTH_I={白:0,灰:1,黑:2},REDUCE=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const KIND={plain:{name:'',mult:1},gold:{name:'黄金苏打饼',mult:3},jade:{name:'翡翠苏打饼',mult:5}};
+let TT=0; // 动画用的时钟（闪光）
+// 震动：安卓用 navigator.vibrate；iPhone 没有，照第一版点一下隐藏的 switch 复选框让 Taptic Engine 响，只在触摸里生效，所以排队到下一次 touchend / click
+function iosTick(){try{const l=document.createElement('label'),i=document.createElement('input');
+  i.type='checkbox';i.setAttribute('switch','');l.setAttribute('aria-hidden','true');l.style.display='none';l.appendChild(i);document.head.appendChild(l);l.click();l.remove()}catch(e){}}
+let hapPending=0;
+function flushHaptic(){if(!hapPending)return;const n=Math.min(hapPending,3);hapPending=0;for(let k=0;k<n;k++)iosTick()}
+['touchend','click'].forEach(t=>document.addEventListener(t,flushHaptic,true));
+function vib(p){if(!p)return;if(navigator.vibrate){try{navigator.vibrate(p)}catch(e){}return}
+  hapPending=Math.max(hapPending,Array.isArray(p)?Math.ceil(p.length/2):1);iosTick()}
 function rrect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
-function holeHi(x,y,r,depth){ // index.html 的 hole()，圆形针头
+function scallopRect(w,h){ // 第一版：长方苏打饼一圈波浪（打孔）边
+  const p=new Path2D(),step=16*U,r=3.2*U,c=8*U,x0=-w/2,y0=-h/2;
+  p.moveTo(x0+c,y0);
+  for(let x=x0+c;x<-x0-c-step/2;x+=step){p.lineTo(x+step/2-r,y0);p.arc(x+step/2,y0,r,Math.PI,0,true)}
+  p.arcTo(-x0,y0,-x0,y0+c,c);
+  for(let y=y0+c;y<-y0-c-step/2;y+=step){p.lineTo(-x0,y+step/2-r);p.arc(-x0,y+step/2,r,-Math.PI/2,Math.PI/2,true)}
+  p.arcTo(-x0,-y0,-x0-c,-y0,c);
+  for(let x=-x0-c;x>x0+c+step/2;x-=step){p.lineTo(x-step/2+r,-y0);p.arc(x-step/2,-y0,r,0,Math.PI,true)}
+  p.arcTo(x0,-y0,x0,-y0-c,c);
+  for(let y=-y0-c;y>y0+c+step/2;y-=step){p.lineTo(x0,y-step/2+r);p.arc(x0,y-step/2,r,Math.PI/2,-Math.PI/2,true)}
+  p.arcTo(x0,y0,x0+c,y0,c);p.closePath();return p}
+const SHAPE=scallopRect(88,54),tctx=document.createElement('canvas').getContext('2d');
+function inside(x,y,m=0){if(!tctx.isPointInPath(SHAPE,x,y))return false;if(!m)return true;
+  for(let a=0;a<8;a++)if(!tctx.isPointInPath(SHAPE,x+Math.cos(a*Math.PI/4)*m,y+Math.sin(a*Math.PI/4)*m))return false;return true}
+
+// ---------- 扫灰（第一版 makeDust / dustAt / dustLeft / brushAt） ----------
+function makeDust(cover){const d=[],step=26*U;
+  for(let y=-27;y<=27;y+=step)for(let x=-44;x<=44;x+=step){
+    if(Math.random()>cover)continue;const jx=x+(Math.random()-.5)*14*U,jy=y+(Math.random()-.5)*14*U;
+    if(inside(jx,jy))d.push({x:jx,y:jy,r:(22+Math.random()*12)*U,a:.95,seed:Math.random()*1000})}
+  return d}
+function dustAt(b,x,y){if(!b.dust)return 0;let m=0;for(const q of b.dust){if(q.a<=0)continue;const k=1-Math.hypot(q.x-x,q.y-y)/q.r;if(k>0)m=Math.max(m,q.a*Math.min(1,k*1.6))}return m}
+function dustLeft(b){if(!b.dust||!b.dust.length)return 0;return b.dust.reduce((a,q)=>a+Math.max(0,q.a),0)/(b.dust.length*.95)}
+function reveal(silent){if(P.revealed)return;P.revealed=true;if(running&&D&&P.kind!=='plain')D[P.kind]++;
+  if(silent)return;if(P.kind!=='plain'){toast(`开出了${KIND[P.kind].name}！价值 ×${KIND[P.kind].mult}`,1.6);vib([60,40,60,40,150]);brushAt.quiet=performance.now()+400}else toast('扫干净了',0.8)}
+// 每根手指分开记（pointerId → 上一个位置）：一只拇指按着打孔 / 固定，另一根手指照样能扫。只有按在画布本身上才算，按钮和卡片不算
+const brushes=new Map();
+function canBrush(){return running&&P&&P.dust&&!P.trans&&!(H>W||document.hidden||SodaTune.isOpen())}
+function brushAt(id,cx,cy){
+  const prev=brushes.get(id);brushes.set(id,{x:cx,y:cy});if(!canBrush())return;
+  if(cy<(P.zoom>1?LY.rubT:LY.band)||cy>(P.zoom>1?LY.rubB:H))return; // 放大时被裁掉的那部分饼干看不见，不扫
+  const {k,ox,oy}=view(),wx=(cx-ox)/k,wy=(cy-oy)/k,R=24*U,moved=prev?Math.hypot(cx-prev.x,cy-prev.y):0;
+  let hit=false;for(const q of P.dust){if(q.a<=0)continue;if(Math.hypot(q.x-wx,q.y-wy)<q.r+R){q.a=Math.max(0,q.a-Math.min(.35,.04+moved/(k*U)*.006));hit=true}}
+  if(hit)P.dust.dirty=true;
+  if(hit){brushAt.buzz=(brushAt.buzz||0)+moved;if(brushAt.buzz>60){brushAt.buzz=0;if(performance.now()>(brushAt.quiet||0))vib([6])}}
+  const left=dustLeft(P);if(left<.35&&!P.revealed)reveal();if(left<.04)P.dust=null}
+cv.addEventListener('pointerdown',e=>{brushes.delete(e.pointerId);brushAt(e.pointerId,e.clientX,e.clientY);try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(brushes.has(e.pointerId))brushAt(e.pointerId,e.clientX,e.clientY)});
+['pointerup','pointercancel','lostpointercapture'].forEach(t=>cv.addEventListener(t,e=>brushes.delete(e.pointerId)));
+
+// 扎歪的裂纹（第一版 makeCrack）：从孔边开始在饼干上乱走，绕开别的孔，不跑出饼干
+function makeCrack(x,y,r){let best=[];for(let i=0;i<6&&best.length<7;i++){const c=crackOnce(x,y,r);if(c.length>best.length)best=c}return best} // 起点被别的孔 / 饼干边堵住时换个方向再试
+function crackOnce(x,y,r){
+  const holes=P.holes.map(h=>[h.x,h.y]),clear=(px,py)=>inside(px,py,3*U)&&holes.every(([hx,hy])=>Math.hypot(px-hx,py-hy)>HR+3*U);
+  const L=9*U;let a=Math.random()*Math.PI*2,px=x+Math.cos(a)*r*.95,py=y+Math.sin(a)*r*.95;const pts=[[px,py]];
+  for(let i=0;i<9;i++){let ok=false;
+    for(let tries=0;tries<8&&!ok;tries++){const na=a+(Math.random()-.5)*(1+tries*.35),nx=px+Math.cos(na)*L,ny=py+Math.sin(na)*L;
+      if(clear(nx,ny)&&Math.hypot(nx-x,ny-y)>r){a=na;px=nx;py=ny;ok=true}}
+    if(!ok)break;pts.push([px,py])}
+  return pts}
+
+function view(){const z=P.zoom,k=LY.k0*z;return{z,k,ox:LY.cx-(z>1?P.n.x*k:0),oy:LY.cy-(z>1?P.n.y*k:0)}}
+// 地板 + 传送带（第一版 drawTray / drawBelt），CSS 像素；cs = 第一版 1 单位的像素数
+function drawBelt(){
+  const {band,cs,hz,rl,rubT,rubB}=LY,d=DPR,bh=rubB-rubT,off=P.belt+(view().ox-LY.cx); // 放大时带子跟着镜头一起移
+  ctx.save();ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle='#1d2333';ctx.fillRect(0,band,W,H-band);
+  ctx.fillStyle='rgba(255,255,255,.035)';ctx.beginPath();for(let x=7;x<W;x+=14)for(let y=band+7;y<H;y+=14){ctx.moveTo(x+1.6,y);ctx.arc(x,y,1.6,0,7)}ctx.fill();
+  // 橡胶带，横条跟着带子走，上下边压暗
+  ctx.fillStyle='#2a2e37';ctx.fillRect(0,rubT,W,bh);
+  const step=34*cs*P.zoom,o=((off%step)+step)%step;
+  for(let x=o-step;x<W;x+=step){ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(x,rubT,3*cs,bh);ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(x+3*cs,rubT,2*cs,bh)}
+  const g=ctx.createLinearGradient(0,rubT,0,rubB);g.addColorStop(0,'rgba(0,0,0,.35)');g.addColorStop(.12,'rgba(0,0,0,0)');g.addColorStop(.88,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.35)');
+  ctx.fillStyle=g;ctx.fillRect(0,rubT,W,bh);
+  // 两边钢轨：滚轮跟着转，外侧黄黑警示条
+  for(const side of [-1,1]){const y=side<0?rubT-rl:rubB;
+    ctx.fillStyle='#8c97ad';ctx.fillRect(0,y,W,rl);ctx.fillStyle='#5d6880';ctx.fillRect(0,side<0?y+rl-4*cs:y,W,4*cs);
+    const rs=60*cs,ro=((off%rs)+rs)%rs,rr=6.5*cs,a=off/rr,cy=y+rl/2,e=rr*.77;
+    for(let x=ro-rs;x<W+rs;x+=rs){ctx.fillStyle='#4a5468';ctx.beginPath();ctx.arc(x,cy,rr,0,7);ctx.fill();
+      ctx.strokeStyle='#c3cbdb';ctx.lineWidth=1.5*cs;ctx.beginPath();ctx.moveTo(x-Math.cos(a)*e,cy-Math.sin(a)*e);ctx.lineTo(x+Math.cos(a)*e,cy+Math.sin(a)*e);ctx.stroke()}
+    const hy=side<0?y-hz:y+rl;ctx.save();ctx.beginPath();ctx.rect(0,hy,W,hz);ctx.clip();
+    ctx.fillStyle='#ffc61a';ctx.fillRect(0,hy,W,hz);ctx.fillStyle='#1d2333';ctx.beginPath();
+    for(let x=0;x<W+2*hz;x+=2*hz){ctx.moveTo(x,hy);ctx.lineTo(x+hz,hy);ctx.lineTo(x,hy+hz);ctx.lineTo(x-hz,hy+hz);ctx.closePath()}
+    ctx.fill();ctx.restore()}
+  ctx.restore()}
+// 孔（第一版 hole()，圆针头；饼干单位坐标）
+const HOLE_COL=[['#fbf3e2','#d8b887'],['#6f6a63','#a48b68'],['#050302','#3b2208']];
+function hole(x,y,r,depth){
   ctx.save();ctx.translate(x,y);const p=new Path2D();p.ellipse(0,0,r,r*.9,0,0,Math.PI*2);
   const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.2,0,0,r*1.1),hc=HOLE_COL[depth]??HOLE_COL[2];g.addColorStop(0,hc[0]);g.addColorStop(1,hc[1]);
-  ctx.fillStyle=g;ctx.fill(p);ctx.translate(r*.08,r*.1);ctx.strokeStyle='rgba(255,236,190,.45)';ctx.lineWidth=Math.max(.9,r*.08);ctx.stroke(p);ctx.restore()}
-function view(){const z=P.zoom,k=LY.k0*z;return{z,k,ox:LY.cx-(z>1?P.n.x*k:0),oy:LY.cy-(z>1?P.n.y*k:0)}}
-function drawBelt(dt){ // 像素传送带（上一版配色），慢慢往左走
-  const {u,band,k0,cy,logY}=LY,by=Math.max(band,Math.round(cy-31*k0)),bh=Math.min(Math.round(cy+31*k0),logY-10-2*u)-by; // 下边停在提示行上面
-  P.belt+=dt*10*u;R(0,by-2*u,W,bh+4*u,'#1A1026');
-  for(let x=-(Math.floor(P.belt)%(11*u));x<W;x+=11*u){R(x,by,10*u,bh,'#3A3348');R(x+10*u,by,u,bh,'#322B40')}
-  return[by,bh];
-}
-function drawBiscuit(belt){
-  const d=DPR,{band}=LY,{z,k,ox,oy}=view();
+  ctx.fillStyle=g;ctx.fill(p);ctx.translate(r*.08,r*.1);ctx.strokeStyle='rgba(255,236,190,.45)';ctx.lineWidth=Math.max(.9*U,r*.08);ctx.stroke(p);ctx.restore()}
+// 灰层缓存：每块饼干的灰画进一张离屏画布（按 k×DPR 的设备像素，够清楚），只有扫过 / 缩放变了才重画；
+// 重画时每团灰用同一张径向渐变小图 + globalAlpha，不再每帧建 90 个渐变
+const DUST_M=1;let dustSpr=null;
+function dustSprite(sc){const r=Math.ceil(9.6*sc);if(dustSpr&&dustSpr.r===r)return dustSpr.c;
+  const c=document.createElement('canvas');c.width=c.height=2*r;const x=c.getContext('2d'),g=x.createRadialGradient(r,r,0,r,r,r);
+  g.addColorStop(0,'rgba(128,124,118,1)');g.addColorStop(.65,'rgba(140,135,128,.9)');g.addColorStop(1,'rgba(140,135,128,0)');
+  x.fillStyle=g;x.fillRect(0,0,2*r,2*r);dustSpr={r,c};return c}
+function dustLayer(dust,sc){
+  let L=dust.cv;const w=Math.ceil((88+2*DUST_M)*sc),h=Math.ceil((54+2*DUST_M)*sc);
+  if(L&&!dust.dirty&&L.width===w&&L.height===h)return L;
+  if(!L)L=dust.cv=document.createElement('canvas');if(L.width!==w||L.height!==h){L.width=w;L.height=h}
+  const x=L.getContext('2d'),spr=dustSprite(sc);dust.dirty=false;
+  x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,w,h);x.setTransform(w/(88+2*DUST_M),0,0,h/(54+2*DUST_M),(44+DUST_M)*w/(88+2*DUST_M),(27+DUST_M)*h/(54+2*DUST_M));
+  x.save();x.clip(SHAPE);x.imageSmoothingEnabled=true;
+  for(const q of dust){if(q.a<=.02)continue;x.globalAlpha=q.a;x.drawImage(spr,q.x-q.r,q.y-q.r,2*q.r,2*q.r);
+    x.fillStyle='rgba(90,86,80,.8)';for(let i=0;i<5;i++){const a=q.seed+i*2.4,rr=(q.seed*7+i*13)%q.r*.7;x.fillRect(q.x+Math.cos(a)*rr-.8*U,q.y+Math.sin(a)*rr-.8*U,1.6*U,1.6*U)}}
+  x.restore();x.globalAlpha=1;return L}
+const KC={plain:['#f0cf8d','#e7bd72','#d9a75a'],gold:['#fff1a8','#f2c230','#b8860b'],jade:['#c9f5dc','#5fc79a','#21795a']};
+// 一块饼干（第一版 drawCracker）：b = 饼干数据，dx = 传送带上的水平位移（CSS 像素），br>0 裂成两半漂开
+function drawCracker(b,dx,br,sx,sy){
+  const d=DPR,{z,k,ox,oy}=view(),{band,rubT,rubB}=LY;
   ctx.save();ctx.setTransform(d,0,0,d,0,0);
-  ctx.beginPath();if(z>1)ctx.rect(0,belt[0],W,belt[1]);else ctx.rect(0,band,W,H-band);ctx.clip();
-  const bx=ox-44*k,by=oy-27*k,bw=88*k,bh=54*k,rad=14*z;
-  ctx.fillStyle='rgba(26,16,38,.45)';rrect(bx+2,by+5,bw,bh,rad);ctx.fill(); // 影子
-  const g=ctx.createLinearGradient(0,by,0,by+bh);g.addColorStop(0,'#f6cf7d');g.addColorStop(1,'#d9a24a');
-  ctx.fillStyle=g;rrect(bx,by,bw,bh,rad);ctx.fill();ctx.strokeStyle='#b07a2c';ctx.lineWidth=3;ctx.stroke();
-  ctx.strokeStyle='#c8913d66';ctx.lineWidth=2;rrect(bx+12*z,by+12*z,bw-24*z,bh-24*z,8*z);ctx.stroke();
-  ctx.fillStyle='#fff7e4cc';SALT.forEach(p=>{ctx.beginPath();ctx.arc(ox+p.x*k,oy+p.y*k,p.r*k,0,7);ctx.fill()});
-  // 目标：按要求的力度填底色，虚线圈（屏幕像素 2px、5/4 虚线），中间写白 / 灰 / 黑
-  const r=HR*k;
-  P.tg.forEach(t=>{if(t.hit)return;const i=DEPTH_I[t.f]??2,x=ox+t.x*k,y=oy+t.y*k;
-    ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.45)','rgba(10,6,3,.45)'][i];ctx.beginPath();ctx.ellipse(x,y,r,r*.9,0,0,7);ctx.fill();
-    ctx.setLineDash([5,4]);ctx.strokeStyle='rgba(60,30,5,.85)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=['#7a5a2a','#f3ead6','#ffc61a'][i];ctx.font=`800 ${Math.round(r*.9)}px "Noto Sans SC",-apple-system,"PingFang SC",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.f,x,y+r*0.06)});
-  // 打好的孔（扎歪的也留着，外面一圈细红线）
-  P.holes.forEach(h=>{const x=ox+h.x*k,y=oy+h.y*k;holeHi(x,y,r,DEPTH_I[h.f]??2);
-    if(!h.ok){ctx.strokeStyle='#E5484D';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(x,y,r+2,r*.9+2,0,0,7);ctx.stroke()}});
+  ctx.beginPath();if(z>1)ctx.rect(0,rubT,W,rubB-rubT);else ctx.rect(0,band,W,H-band);ctx.clip();
+  for(let half=0;half<(br>0?2:1);half++){
+    ctx.save();ctx.setTransform(d*k,0,0,d*k,d*(ox+dx+sx),d*(oy+sy)); // 下面全是饼干单位坐标
+    if(br>0){const q=Math.max(0,br-1),m=(half?1:-1)*q*40*U;ctx.translate(m,Math.abs(m)*.3);ctx.rotate((half?1:-1)*q*.15);
+      ctx.beginPath();if(half)ctx.rect(2*U,-80,120,160);else ctx.rect(-120-2*U,-80,120,160);ctx.clip()}
+    ctx.save();ctx.translate(6*U,9*U);ctx.fillStyle='rgba(0,0,0,.35)';ctx.fill(SHAPE);ctx.restore(); // 影子
+    const kc=KC[b.kind]||KC.plain,g=ctx.createLinearGradient(-44,-27,44,27);g.addColorStop(0,kc[0]);g.addColorStop(.5,kc[1]);g.addColorStop(1,kc[2]);
+    ctx.fillStyle=g;ctx.fill(SHAPE);ctx.strokeStyle='#b9833c';ctx.lineWidth=1.5*U;ctx.stroke(SHAPE);
+    ctx.save();ctx.scale(.9,.88);ctx.strokeStyle='rgba(150,95,30,.25)';ctx.lineWidth=2*U;ctx.stroke(SHAPE);ctx.restore(); // 里面一圈烤痕
+    for(const s of b.specks){ctx.fillStyle=s.d>.5?'rgba(170,110,40,.35)':'rgba(255,240,200,.35)';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill()}
+    ctx.fillStyle='rgba(255,255,255,.85)';for(const s of b.salt){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.a);ctx.fillRect(-s.r/2,-s.r/2,s.r,s.r);ctx.restore()}
+    // 裂纹压在孔下面，出不了饼干
+    if(b.cracks.length){ctx.save();ctx.clip(SHAPE);ctx.lineJoin='round';ctx.lineCap='round';
+      for(const [w,col,o] of [[2.4*U,'rgba(80,40,5,.85)',0],[1*U,'rgba(255,236,190,.35)',U]]){ctx.strokeStyle=col;ctx.lineWidth=w;
+        for(const c of b.cracks){if(c.length<2)continue;ctx.beginPath();c.forEach((p,i)=>i?ctx.lineTo(p[0]+o,p[1]+o):ctx.moveTo(p[0]+o,p[1]+o));ctx.stroke()}}
+      ctx.restore()}
+    // 目标：按要求的力度填底色、中间写白 / 灰 / 黑，虚线圈（屏幕上 2px、5/4 虚线）
+    for(const t of b.tg){if(t.hit)continue;const i=DEPTH_I[t.f]??2;
+      ctx.beginPath();ctx.ellipse(t.x,t.y,HR,HR*.9,0,0,7);ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.45)','rgba(10,6,3,.45)'][i];ctx.fill();
+      ctx.setLineDash([5/k,4/k]);ctx.strokeStyle='rgba(60,30,5,.85)';ctx.lineWidth=2/k;ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=['#7a5a2a','#f3ead6','#ffc61a'][i];ctx.font=`800 ${(HR*.9).toFixed(2)}px "Noto Sans SC",-apple-system,"PingFang SC",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.f,t.x,t.y+U)}
+    for(const h of b.holes)hole(h.x,h.y,HR,DEPTH_I[h.f]??2); // 扎在哪孔就在哪（扎歪的也留着）
+    if(b.kind!=='plain'&&b.revealed)for(let i=0;i<5;i++){ // 黄金 / 翡翠开出来以后闪光
+      const a=TT*1.3+i*1.7,x=Math.cos(a*1.1+i)*88*.32,y=Math.sin(a*.8+i*2)*54*.3,q=(Math.sin(TT*4+i)+1)/2,L=(6*q+2)*U,w=1.5*U;
+      ctx.fillStyle=`rgba(255,255,255,${.25+q*.6})`;ctx.beginPath();ctx.moveTo(x,y-L);ctx.lineTo(x+w,y);ctx.lineTo(x,y+L);ctx.lineTo(x-w,y);ctx.fill();
+      ctx.beginPath();ctx.moveTo(x-L,y);ctx.lineTo(x,y+w);ctx.lineTo(x+L,y);ctx.lineTo(x,y-w);ctx.fill()}
+    if(b.dust){const L=dustLayer(b.dust,Math.min(16,k*d)),m=DUST_M;ctx.drawImage(L,-44-m,-27-m,88+2*m,54+2*m)} // 灰盖在目标和孔上面（缓存好的一层）
+    ctx.restore()}
+  ctx.restore()}
+function drawPunchArea(){ // 换饼干时旧的往右滑走、新的从左边滑进来
+  const sh=P.shake*6,sx=sh?(Math.random()-.5)*sh:0,sy=sh?(Math.random()-.5)*sh:0;
+  if(P.trans){const T=P.trans,m=T.e*T.span;drawCracker(T.old,m,T.br,sx,sy);drawCracker(P,m-T.span,0,sx,sy)}
+  else drawCracker(P,0,0,sx,sy);
+  return[sx,sy]}
+function animTick(dt){
+  if(P.trans){const T=P.trans,pe=T.e;T.p=Math.min(1,T.p+dt/0.8);T.e=T.p<.5?2*T.p*T.p:1-Math.pow(-2*T.p+2,2)/2;
+    P.belt+=(T.e-pe)*T.span;if(T.br>0)T.br=Math.min(2,T.br+dt*1.5);if(T.p>=1)endTrans()}
+  if(P.plunge>0)P.plunge=Math.max(0,P.plunge-dt*4.5);
+  P.shake=Math.max(0,P.shake-dt*3);
+  for(const b of P.bolts)b.life-=dt*4;P.bolts=P.bolts.filter(b=>b.life>0);
+}
+// 雷霆大针管（第一版 draw()）：从右上方斜着伸进来，放大时也一样大；黄圈 = 真实孔大小，扎下去时缩一下
+function drawNeedle(sx,sy){
+  const d=DPR,{k,ox,oy}=view(),nx=ox+P.n.x*k+sx,ny=oy+P.n.y*k+sy,p=P.plunge,s1=LY.k0*U,m=1-[0,.25,.4,.55][aug('pump')];
+  const ringR=HR*k*(1-p*.25);
+  ctx.save();ctx.setTransform(d,0,0,d,0,0);
+  ctx.beginPath();ctx.rect(0,LY.band,W,H-LY.band);ctx.clip(); // 只画在柜台下面，不挡客人
+  // 针管往右上伸，大约高 125 个单位；针头靠近柜台、上面放不下时，针管慢慢转平，再往右下斜，不被柜台裁掉
+  const room=ny-LY.band,rot=-.55*(2*Math.max(0,Math.min(1,room/(125*s1)))-1);
+  ctx.save();ctx.translate(nx,ny);ctx.scale(s1,s1);const lift=26*(1-p)+4;
+  ctx.save();ctx.translate(lift*.6,lift*.8);ctx.rotate(rot);ctx.fillStyle='rgba(0,0,0,.28)';rrect(14,-9,150,18,6);ctx.fill();ctx.restore(); // 影子
+  ctx.save();ctx.translate(lift*.15,-lift*.2);ctx.rotate(rot);
+  ctx.strokeStyle='#cfd6e6';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(34,0);ctx.stroke(); // 针
+  ctx.fillStyle='#8ea0c6';rrect(34,-5,12,10,2);ctx.fill(); // 针座
+  ctx.fillStyle='rgba(200,225,255,.55)';rrect(46,-12,96,24,6);ctx.fill();ctx.strokeStyle='#eaf2ff';ctx.lineWidth=1.5;ctx.stroke(); // 针筒
+  ctx.fillStyle='rgba(255,198,26,.85)';rrect(48,-9,60-p*20,18,4);ctx.fill(); // 雷电液
+  ctx.strokeStyle='rgba(30,35,51,.7)';ctx.lineWidth=1;for(let i=0;i<6;i++){ctx.beginPath();ctx.moveTo(56+i*14,-12);ctx.lineTo(56+i*14,-5);ctx.stroke()}
+  ctx.fillStyle='#ff5a5f';rrect(142,-15,8,30,3);ctx.fill(); // 红色挡片
+  const pull=P.charging?Math.min(1,P.charge/(0.9*m))*22:0;ctx.fillStyle='#cfd6e6';ctx.fillRect(150-p*24+pull,-3,40,6);rrect(188-p*24+pull,-12,8,24,3);ctx.fill(); // 活塞：蓄力往外拉，扎下去推进
+  ctx.fillStyle='#2a1f00';ctx.beginPath();ctx.moveTo(80,-7);ctx.lineTo(72,1);ctx.lineTo(78,1);ctx.lineTo(74,8);ctx.lineTo(84,-1);ctx.lineTo(78,-1);ctx.closePath();ctx.fill(); // 闪电标
+  ctx.restore();ctx.restore();
+  ctx.save();ctx.translate(nx,ny);
+  const onGold=P.kind==='gold'&&P.revealed&&!P.trans; // 黄金饼上黄圈看不清：底下垫一圈深色
+  if(onGold){ctx.strokeStyle='rgba(43,27,61,.7)';ctx.lineWidth=5.6;ctx.beginPath();ctx.arc(0,0,ringR,0,7);ctx.stroke()}
+  ctx.strokeStyle='#ffc61a';ctx.lineWidth=3.2;ctx.beginPath();ctx.arc(0,0,ringR,0,7);ctx.stroke();
+  if(P.charging){const f=forceOf(P.charge),i=DEPTH_I[f],q=Math.min(1,P.charge/(0.9*m)*1.05);
+    ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.6)','rgba(0,0,0,.7)'][i];ctx.beginPath();ctx.arc(0,0,ringR*.92,0,7);ctx.fill();
+    ctx.strokeStyle=['#fffaf0','#b7b0a6','#ff5a5f'][i];ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,0,ringR+5,-Math.PI/2,-Math.PI/2+Math.max(.02,q)*Math.PI*2);ctx.stroke();ctx.lineCap='butt';
+    const below=ny-ringR-26<LY.rubT,ly=below?ringR+12:-ringR-12; // 上面是警示条 / toast 时字写在圈下面
+    ctx.font='900 14px "Noto Sans SC",-apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline=below?'top':'bottom';ctx.lineWidth=4;ctx.lineJoin='round';ctx.strokeStyle='#2B1B3D';
+    ctx.strokeText('蓄力 · '+f,-8,ly);ctx.fillStyle='#ffd23f';ctx.fillText('蓄力 · '+f,-8,ly)}
+  ctx.fillStyle='#ffc61a';ctx.beginPath();ctx.arc(0,0,2,0,7);ctx.fill();if(onGold){ctx.strokeStyle='rgba(43,27,61,.8)';ctx.lineWidth=1;ctx.stroke()}
+  for(const b of P.bolts){ctx.strokeStyle=`rgba(255,226,90,${b.life})`;ctx.lineWidth=2;ctx.beginPath();let rr=ringR+2;ctx.moveTo(Math.cos(b.a)*rr,Math.sin(b.a)*rr);
+    for(let i=1;i<=4;i++){rr=ringR+2+b.len*s1*i/4*(1.2-b.life*.4);const j=(Math.random()-.5)*.5;ctx.lineTo(Math.cos(b.a+j)*rr,Math.sin(b.a+j)*rr)}ctx.stroke()}
   ctx.restore();
-}
-function drawNeedle(){
-  const d=DPR,{k,ox,oy}=view(),nx=ox+P.n.x*k,ny=oy+P.n.y*k,r=HR*k;
-  ctx.save();ctx.setTransform(d,0,0,d,0,0);
-  if(P.charging){const f=forceOf(P.charge),q=Math.min(1,P.charge/(0.9*(1-[0,.25,.4,.55][aug('pump')])));
-    ctx.strokeStyle={白:'#fff7e4',灰:'#a8a29a',黑:'#1a1208'}[f];ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();ctx.arc(nx,ny,r+7,-Math.PI/2,-Math.PI/2+Math.max(0.02,q)*Math.PI*2);ctx.stroke();ctx.lineCap='butt';
-    ctx.font='900 14px "Noto Sans SC",-apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.lineWidth=4;ctx.lineJoin='round';ctx.strokeStyle='#2B1B3D';ctx.strokeText('蓄力 · '+f,nx,ny-r-12);ctx.fillStyle='#ffd23f';ctx.fillText('蓄力 · '+f,nx,ny-r-12)}
-  // 黄圈 = 真实孔大小，四根刻度，白色圆心
-  ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(nx,ny,r,0,7);ctx.stroke();
-  ctx.strokeStyle='#ffd23faa';ctx.lineWidth=1.2;ctx.beginPath();
-  ctx.moveTo(nx-r-6,ny);ctx.lineTo(nx-r+4,ny);ctx.moveTo(nx+r-4,ny);ctx.lineTo(nx+r+6,ny);ctx.moveTo(nx,ny-r-6);ctx.lineTo(nx,ny-r+4);ctx.moveTo(nx,ny+r-4);ctx.lineTo(nx,ny+r+6);ctx.stroke();
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(nx,ny,2,0,7);ctx.fill();
   // 固定：真实范围（半径 5），画在最上面，加一个十字标出固定点
-  if(P.lock){const lx=ox+P.lock.x*k,ly=oy+P.lock.y*k;ctx.fillStyle='#7fb0ff1f';ctx.strokeStyle='#7fb0ffcc';ctx.lineWidth=2.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.arc(lx,ly,5*k,0,7);ctx.fill();ctx.stroke();ctx.setLineDash([]);
+  if(P.lock){const lx=ox+P.lock.x*k+sx,ly=oy+P.lock.y*k+sy;ctx.fillStyle='#7fb0ff1f';ctx.strokeStyle='#7fb0ffcc';ctx.lineWidth=2.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.arc(lx,ly,5*k,0,7);ctx.fill();ctx.stroke();ctx.setLineDash([]);
     ctx.strokeStyle='#7fb0ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(lx-5,ly);ctx.lineTo(lx+5,ly);ctx.moveTo(lx,ly-5);ctx.lineTo(lx,ly+5);ctx.stroke()}
   ctx.restore();
 }
@@ -431,15 +599,15 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   const paused=H>W||document.hidden||SodaTune.isOpen(); // 竖屏 / 切后台 / 开着陀螺仪设置：钟和耐心都停
-  if(running&&!paused){counterTick(dt);if(running)moveNeedle(dt)}
+  if(running&&!paused){counterTick(dt);if(running){moveNeedle(dt);animTick(dt)}}
+  if(!paused){TT+=dt;P.belt+=dt*(running?12:6)} // 传送带一直慢慢走
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
-  const {u,band}=LY;
-  for(let x=0;x<W;x+=13*u){R(x,band,12*u,H-band,'#2E2040');R(x+12*u,band,u,H-band,'#261A36')} // 地板
-  const belt=drawBelt(running?dt:dt*0.5);
-  drawBiscuit(belt);
+  drawBelt();
+  const [sx,sy]=drawPunchArea();
   drawCounterBand();
-  if(running)drawNeedle();
+  if(running)drawNeedle(sx,sy);
   drawHud();
+  if(running&&P.plunge>.7&&!REDUCE){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=`rgba(255,226,90,${(P.plunge-.7)*.25})`;ctx.fillRect(0,0,cv.width,cv.height)} // 扎下去那一下淡黄闪光
   requestAnimationFrame(frame);
 }
 resize();idle();ratioUI();startCard();requestAnimationFrame(frame);
