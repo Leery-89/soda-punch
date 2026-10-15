@@ -67,7 +67,7 @@
 <div id="dlg" class="hidden"><canvas id="pL" width="48" height="34"></canvas><canvas id="pR" width="48" height="34"></canvas><div id="dlgBox"><span id="dlgName"></span><p id="dlgText"></p><span id="dlgMore">▼ 点一下继续</span></div></div>
 
 <div id="gameUI" class="hidden">
-  <div id="gameTop"><span id="ratioBox" class="hidden"><button class="px gray" id="rDn">−</button><b id="rVal" class="chip"></b><button class="px gray" id="rUp">＋</button></span><button class="px gray" id="calB">重新校准</button><button class="px gray" id="giveupB">交货</button></div>
+  <div id="gameTop"><span id="ratioBox" class="hidden"><button class="px gray" id="rDn">−</button><b id="rVal" class="chip"></b><button class="px gray" id="rUp">＋</button></span><button class="px gray" id="calB">重新校准</button><button class="px gray" id="tuneB">陀螺仪设置</button><button class="px gray" id="giveupB">交货</button></div>
   <button id="lockB" class="pad">固定</button>
   <button id="zoomB" class="pad hidden">放大<br>1×</button>
   <button id="punchB" class="pad">打孔</button>
@@ -75,6 +75,7 @@
 
 <div class="panel" id="panel"><div class="card" id="card"></div></div>
 
+<script src="../tune.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -578,10 +579,12 @@ async function enableTilt(){try{
   if(!listening){addEventListener('deviceorientation',onOri);listening=true}
   if(!gotTilt)await new Promise(r=>setTimeout(r,700));return gotTilt}catch(e){return false}}
 function calibrate(){base={x:raw.x,y:raw.y}}
-const TUNE=(()=>{const d={dead:1.5,full:22,curve:1,invX:false,invY:false};try{return Object.assign(d,JSON.parse(localStorage.getItem('sodaTune')||'{}'))}catch(e){return d}})();
-function tiltAxis(v,inv){const a=Math.abs(v)-TUNE.dead;if(a<=0)return 0;const k=Math.min(1,a/Math.max(1,TUNE.full-TUNE.dead));return Math.sign(v)*Math.pow(k,TUNE.curve)*(inv?-1:1)}
+// shared 陀螺仪设置 panel (../tune.js); speed/follow/tremor apply relative to the main game's defaults
+const TUNE=SodaTune.TUNE,tiltAxis=SodaTune.tiltAxis;
 const keys={};addEventListener('keydown',e=>keys[e.key]=1);addEventListener('keyup',e=>keys[e.key]=0);
 $('calB').onclick=()=>{calibrate();toast('已校准',0.8)};
+SodaTune.attach({tilt:()=>({x:raw.x-base.x,y:raw.y-base.y}),calibrate:()=>{calibrate();toast('已校准',0.8)}});
+$('tuneB').onclick=()=>SodaTune.isOpen()?SodaTune.close():SodaTune.open();
 
 // ---------- punching ----------
 let P=null;
@@ -632,9 +635,9 @@ function drawPunch(dt){
   // move needle
   let ax=tiltAxis(raw.x-base.x,TUNE.invX),ay=tiltAxis(raw.y-base.y,TUNE.invY);
   if(keys.ArrowLeft)ax=-1;if(keys.ArrowRight)ax=1;if(keys.ArrowUp)ay=-1;if(keys.ArrowDown)ay=1;
-  const spd=55*(P.zoom===1?1:P.zoom===2?0.8:0.65);
-  const k=Math.min(1,dt*8);P.v.x+=(ax*spd-P.v.x)*k;P.v.y+=(ay*spd-P.v.y)*k;
-  const tr=2.2*(1-0.35*G.up.wrist)/Math.sqrt(P.zoom);
+  const spd=55*TUNE.speed/SodaTune.DEF.speed*(P.zoom===1?1:P.zoom===2?0.8:0.65);
+  const k=Math.min(1,dt*TUNE.follow);P.v.x+=(ax*spd-P.v.x)*k;P.v.y+=(ay*spd-P.v.y)*k;
+  const tr=2.2*TUNE.tremor*(1-0.35*G.up.wrist)/Math.sqrt(P.zoom);
   P.trem.x+=(Math.random()-0.5)*tr*dt*30;P.trem.y+=(Math.random()-0.5)*tr*dt*30;P.trem.x*=0.92;P.trem.y*=0.92;
   P.n.x+=P.v.x*dt+P.trem.x*dt*6;P.n.y+=P.v.y*dt+P.trem.y*dt*6;
   if(P.lock){const dx=P.n.x-P.lock.x,dy=P.n.y-P.lock.y,d=Math.hypot(dx,dy),m=5;if(d>m){P.n.x=P.lock.x+dx/d*m;P.n.y=P.lock.y+dy/d*m}}
