@@ -41,8 +41,22 @@
   #gameTop{position:fixed;right:calc(12px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;z-index:3;align-items:center}
   #gameTop button{font-size:15px;padding:4px 10px;min-height:40px}
   #rVal{font-family:Silkscreen,monospace;font-weight:400;color:#FFD23F}
-  #gameUI.counter #calB,#gameUI.counter #tuneB,#gameUI.counter #giveupB{position:fixed;left:calc(14px + env(safe-area-inset-left));width:110px;font-size:15px;min-height:40px;padding:4px 6px}
-  #gameUI.counter #giveupB{bottom:calc(88px + env(safe-area-inset-bottom))}#gameUI.counter #calB{bottom:calc(140px + env(safe-area-inset-bottom))}#gameUI.counter #tuneB{bottom:calc(192px + env(safe-area-inset-bottom))}
+  #brk,#rLbl{display:none}
+  /* 营业界面：照最早那版（lock-zoom）——圆形大按钮、细框文字按钮 */
+  #gameUI.counter #gameTop{flex-wrap:wrap;justify-content:flex-end;max-width:380px;gap:8px 10px}
+  #gameUI.counter #calB{order:1}#gameUI.counter #tuneB{order:2}#gameUI.counter #brk{display:block;order:3;flex-basis:100%;height:0}#gameUI.counter #ratioBox{order:4}#gameUI.counter #giveupB{order:5}
+  #gameUI.counter #gameTop .px{background:transparent;color:#eef3ff;border:2px solid #ffffff40;border-radius:12px;box-shadow:none;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;font-weight:500;font-size:15px;min-height:38px;padding:4px 12px}
+  #gameUI.counter #rLbl{display:inline;color:#b9c6e0;font-size:15px;margin-right:4px}
+  #gameUI.counter #rVal{background:none;border:0;box-shadow:none;font-family:-apple-system,"PingFang SC",sans-serif;font-weight:600;font-size:16px;color:#ffd23f;padding:0 4px}
+  #gameUI.counter #rDn,#gameUI.counter #rUp{min-width:38px;padding:4px 8px}
+  #gameUI.counter .pad{border-radius:50%;border:4px solid #fff3;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;font-weight:800}
+  #gameUI.counter #lockB{left:calc(18px + env(safe-area-inset-left));right:auto;bottom:calc(26px + env(safe-area-inset-bottom));width:96px;height:96px;background:#3b82f6;color:#fff;font-size:22px;box-shadow:0 6px 0 #1e4fa8}
+  #gameUI.counter #lockB.on{background:#7fb0ff;transform:translateY(4px);box-shadow:0 2px 0 #1e4fa8}
+  #gameUI.counter #punchB{right:calc(18px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));width:96px;height:96px;background:#ffd23f;color:#3a2a00;font-size:22px;box-shadow:0 6px 0 #a8820f}
+  #gameUI.counter #punchB:active{transform:translateY(4px);box-shadow:0 2px 0 #a8820f}
+  #gameUI.counter #zoomB{left:auto;right:calc(128px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:68px;height:68px;background:#2a3550;color:#ffd23f;font-size:15px;line-height:1.15;box-shadow:0 5px 0 #161d2e}
+  body.counter #toast{font-family:-apple-system,"PingFang SC",sans-serif;font-weight:800;font-size:22px;color:#ffd23f;text-shadow:0 2px 0 #0d1626}
+  #gameUI.counter ~ #tip,#tip.counter{color:#b9c6e0;font-size:13px;text-shadow:none;width:min(60vw,560px)}
   #ratioBox{display:flex;gap:4px;align-items:center}
   #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:24px;font-family:'ZCOOL KuaiLe',sans-serif;color:#FFD23F;text-shadow:3px 3px 0 #2B1B3D;pointer-events:none;z-index:6;opacity:0;transition:opacity .2s;white-space:nowrap}
   #tip{position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:12px;color:#d9cdf0;text-shadow:2px 2px 0 #0e0a18;pointer-events:none;z-index:2;text-align:center;width:min(70vw,460px)}
@@ -73,7 +87,7 @@
 <div id="dlg" class="hidden"><canvas id="pL" width="36" height="40"></canvas><canvas id="pR" width="36" height="40"></canvas><div id="dlgBox"><span id="dlgName"></span><p id="dlgText"></p><span id="dlgMore">▼ 点一下继续</span></div></div>
 
 <div id="gameUI" class="hidden">
-  <div id="gameTop"><span id="ratioBox" class="hidden"><button class="px gray" id="rDn">−</button><b id="rVal" class="chip"></b><button class="px gray" id="rUp">＋</button></span><button class="px gray" id="calB">重新校准</button><button class="px gray" id="tuneB">陀螺仪设置</button><button class="px gray" id="giveupB">交货</button></div>
+  <div id="gameTop"><span id="ratioBox" class="hidden"><span id="rLbl">售价</span><button class="px gray" id="rDn">−</button><b id="rVal" class="chip"></b><button class="px gray" id="rUp">＋</button></span><button class="px gray" id="calB">重新校准</button><button class="px gray" id="tuneB">陀螺仪设置</button><span id="brk"></span><button class="px gray" id="giveupB">交货</button></div>
   <button id="lockB" class="pad">固定</button>
   <button id="zoomB" class="pad hidden">放大<br>1×</button>
   <button id="punchB" class="pad">打孔</button>
@@ -558,9 +572,9 @@ async function startCounter(){
   newBiscuit();
   $('gameUI').classList.remove('hidden');$('gameUI').classList.add('counter');$('ratioBox').classList.remove('hidden');ratioUI();
   $('zoomB').classList.toggle('hidden',!aug('fireeye'));$('zoomB').innerHTML='放大<br>1×';
-  $('tip').textContent=gotTilt?'':'没检测到陀螺仪：电脑上用方向键移动针头';
+  $('tip').classList.add('counter');document.body.classList.add('counter');$('tip').textContent='倾斜手机对准目标，按住「打孔」蓄力，松手扎下：短按白、中按灰、长按黑'+(gotTilt?'':'（电脑上用方向键，空格键代替打孔）');
 }
-function ratioUI(){$('rVal').textContent='售价 ×'+G.ratio.toFixed(1)}
+function ratioUI(){$('rVal').textContent=G.ratio.toFixed(1)+'×'}
 function setRatio(d){G.ratio=Math.min(2,Math.max(0.5,Math.round((G.ratio+d)*10)/10));save();ratioUI()}
 function newBiscuit(){
   const f=C.cust[0];
@@ -610,7 +624,7 @@ function counterTick(dt){
 }
 function endCounter(){
   const left=C.shelf.length;C.shelf=[];P=null;scene='town';
-  $('gameUI').classList.add('hidden');$('gameUI').classList.remove('counter');$('ratioBox').classList.add('hidden');$('tip').textContent='';$('lockB').classList.remove('on');
+  $('gameUI').classList.add('hidden');$('gameUI').classList.remove('counter');$('ratioBox').classList.add('hidden');$('tip').textContent='';$('tip').classList.remove('counter');document.body.classList.remove('counter');$('lockB').classList.remove('on');
   G.clock=SESS_START[G.sess]+240;
   msg(G.sess?'下午打烊':'上午收摊',left?`货架上还剩 ${left} 块没卖掉，收摊清掉了（不留到下一场）。`:'货架清空了！','好',endSession);
 }
@@ -625,47 +639,74 @@ function panelBox(x,y,w,h,inner=true){const d=DPR;ctx.fillStyle='#1A1026';ctx.fi
   ctx.fillStyle='#3D2A5C';ctx.fillRect(x+3*d,y+3*d,w-6*d,h-6*d);if(inner){ctx.strokeStyle='#5B4580';ctx.lineWidth=2*d;ctx.strokeRect(x+4*d,y+4*d,w-8*d,h-8*d)}}
 function txt(t,x,y,size,o={}){ctx.font=`${o.w||700} ${size*DPR}px ${o.f||'"Noto Sans SC",-apple-system,sans-serif'}`;ctx.fillStyle=o.c||'#FFF4D6';ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'middle';
   if(o.stroke){ctx.lineWidth=4*DPR;ctx.strokeStyle='#2B1B3D';ctx.lineJoin='round';ctx.strokeText(t,x,y)}ctx.fillText(t,x,y);return ctx.measureText(t).width}
+// ---------- 营业界面（效果图：最早那版 + 上方排队顾客） ----------
+// 打孔区照 lock-zoom 和 index.html 的高清画法；坐标仍用饼干单位（88×54），只换画法
+const HR=4.6,DEPTH_I={白:0,灰:1,黑:2};
+const SALT=(()=>{const r=rnd(5),a=[];for(let i=0;i<110;i++)a.push({x:-42+r()*84,y:-25+r()*50,r:0.25+r()*0.45});return a})();
+const HOLE_COL=[['#fbf3e2','#d8b887'],['#6f6a63','#a48b68'],['#050302','#3b2208']];
+function rrect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function holeHi(x,y,r,depth){ // index.html 的 hole()，圆形针头
+  ctx.save();ctx.translate(x,y);const p=new Path2D();p.ellipse(0,0,r,r*.9,0,0,Math.PI*2);
+  const g=ctx.createRadialGradient(-r*.3,-r*.3,r*.2,0,0,r*1.1),hc=HOLE_COL[depth]??HOLE_COL[2];g.addColorStop(0,hc[0]);g.addColorStop(1,hc[1]);
+  ctx.fillStyle=g;ctx.fill(p);ctx.translate(r*.08,r*.1);ctx.strokeStyle='rgba(255,236,190,.45)';ctx.lineWidth=Math.max(.9,r*.08);ctx.stroke(p);ctx.restore()}
 function counterHud(){
-  const k=S*DPR,d=DPR,wallH=Math.round(LH*0.29),top=wallH*k;ctx.save();
-  // 排队的客人：躲在柜台后面，头上举着订单
-  const px=Math.max(1,Math.floor(top*0.86/40));
-  for(let i=0;i<3;i++){const c=C.cust[i],x=SLOT(i)*k;
-    if(!c){ctx.setLineDash([5*d,4*d]);ctx.strokeStyle='#5E3B20';ctx.lineWidth=3*d;const w=46*d,h=Math.min(64*d,top*0.55);ctx.strokeRect(x-w/2,top-h,w,h);ctx.setLineDash([]);
-      txt('等下',x,top-h/2-7*d,11,{a:'center',c:'#F3D9B1',w:900});txt('一位',x,top-h/2+7*d,11,{a:'center',c:'#F3D9B1',w:900});continue}
-    const im=SPR[c.kind],sh=(im&&im.naturalHeight||40)*px,feet=top+Math.round(sh*0.18);
-    ctx.save();ctx.beginPath();ctx.rect(0,0,cv.width,top);ctx.clip();drawSprite(c.kind,x,feet,px,{bob:i===0?C.t*0.3:0});ctx.restore();
-    const head=feet-sh,bw=60*d,barY=head-9*d;
-    ctx.fillStyle='#2B1B3D';ctx.fillRect(x-bw/2,barY,bw,6*d);ctx.fillStyle=c.pat/c.max<0.3?'#E5484D':'#6DBE45';ctx.fillRect(x-bw/2+d,barY+d,(bw-2*d)*Math.max(0,c.pat/c.max),4*d);
-    const label=c.custom?`${c.hole}孔 ${c.f}×6`:'普通 ★',fs=12;ctx.font=`900 ${fs*d}px "Noto Sans SC",sans-serif`;const tw=ctx.measureText(label).width+16*d,th=22*d,ty=barY-th-5*d;
-    ctx.fillStyle='#1A1026';ctx.fillRect(x-tw/2,ty+3*d,tw,th);ctx.fillStyle='#2B1B3D';ctx.fillRect(x-tw/2,ty,tw,th);ctx.fillStyle=c.custom?'#FFD23F':'#FFF4D6';ctx.fillRect(x-tw/2+3*d,ty+3*d,tw-6*d,th-6*d);
-    txt(label,x,ty+th/2,fs,{a:'center',c:'#2B1B3D',w:900});
-    if(i===0){ctx.fillStyle='#FFD23F';ctx.beginPath();ctx.moveTo(x-6*d,ty-9*d);ctx.lineTo(x+6*d,ty-9*d);ctx.lineTo(x,ty-2*d);ctx.fill()}}
-  // 柜台盖住客人的腿
-  ctx.fillStyle='#2B1B3D';ctx.fillRect(0,top,cv.width,Math.round(LH*0.34)*k-top);ctx.fillStyle='#C98A4A';ctx.fillRect(0,top+3*d,cv.width,Math.round(LH*0.34)*k-top-6*d);ctx.fillStyle='#E0A866';ctx.fillRect(0,top+3*d,cv.width,2*d);
-  // 表情
-  C.pops.forEach(p=>{const i=C.cust.findIndex(c=>c.id===p.id),slot=i>=0?i:p.slot,x=SLOT(slot)*k,y=top*0.25-(1.6-p.t)*18*d;
-    ctx.globalAlpha=Math.min(1,p.t*2);
-    if(p.emo==='LAUGH')txt('奶龙大笑 哈哈哈！',x,y,18,{a:'center',c:'#FFD23F',f:'"ZCOOL KuaiLe",sans-serif',w:400,stroke:true});
-    else txt(p.emo,x,y,30,{a:'center'});ctx.globalAlpha=1});
-  // 目标上标出要求的力度
-  (P.scr||[]).forEach(t=>{const x=t.x*k,y=t.y*k,w=18*d,h=16*d;ctx.fillStyle='#2B1B3D';ctx.fillRect(x-w/2,y-h/2,w,h);
-    txt(t.f,x,y+d*0.5,11,{a:'center',c:t.f==='白'?'#FFF4D6':t.f==='灰'?'#C9C3DC':'#FFD23F',w:900})});
-  if(P.charging){const [na,nb]=[0,0];const f=forceOf(P.charge);txt('蓄力 · '+f,cv.width/2,(Math.round(LH*0.34)+4)*k+14*d,15,{a:'center',c:'#FFD23F',f:'"ZCOOL KuaiLe",sans-serif',w:400,stroke:true})}
-  // 左上：时钟面板
-  const left=Math.max(0,Math.ceil(DAY_TIME-C.t)),pw=150*d,ph=62*d,x0=12*d,y0=10*d;panelBox(x0,y0,pw,ph);
-  ctx.fillStyle='#FFD23F';ctx.fillRect(x0+12*d,y0+11*d,14*d,14*d);ctx.fillStyle='#FFF0A0';ctx.fillRect(x0+16*d,y0+15*d,6*d,6*d);
-  txt(fmtClock(G.clock),x0+34*d,y0+19*d,19,{f:'Silkscreen,monospace',w:400});
-  ctx.fillStyle='#2B1B3D';ctx.fillRect(x0+12*d,y0+31*d,pw-24*d,6*d);ctx.fillStyle='#FFD23F';ctx.fillRect(x0+13*d,y0+32*d,(pw-26*d)*Math.min(1,C.t/DAY_TIME),4*d);
-  txt(`${G.sess?'下午':'上午'}场 · 剩 ${left} 秒`,x0+12*d,y0+48*d,12,{c:'#D9CBEF'});
-  // 金币
-  const cw=80*d;panelBox(x0,y0+ph+8*d,cw,26*d,false);ctx.fillStyle='#D9A400';ctx.fillRect(x0+10*d,y0+ph+15*d,12*d,12*d);ctx.fillStyle='#FFD23F';ctx.fillRect(x0+13*d,y0+ph+17*d,6*d,8*d);
-  txt(String(G.coins),x0+28*d,y0+ph+21*d,14,{f:'Silkscreen,monospace',w:400});
-  // 右上：货架
-  const g=$('gameTop').getBoundingClientRect(),sw=82*d,sx=cv.width-12*d-sw,sy=(g.bottom+8)*d;panelBox(sx,sy,sw,24*d,false);txt(`货架 ${C.shelf.length} 块`,sx+sw/2,sy+12*d,12,{a:'center',c:'#D9CBEF'});
-  // 底部中间：这一块的进度
-  const done=P.tg.filter(t=>t.hit).length,line=`第 ${C.n} 块 · ${done}/${P.tg.length} 孔${P.o.custom?' · 定制单':''}${P.wrong?' · 扎歪 '+P.wrong:''}`;
-  ctx.font=`700 ${12*d}px "Noto Sans SC",sans-serif`;const bw=ctx.measureText(line).width+20*d,bx=cv.width/2-bw/2-30*d,by=cv.height-36*d;panelBox(bx,by,bw,26*d,false);txt(line,bx+10*d,by+13*d,12);
-  if(C.logT>0)txt(C.log,cv.width/2-30*d,by-16*d,14,{a:'center',c:'#FFD23F',w:900,stroke:true});
+  const d=DPR,W=cv.width/d,H=cv.height/d,railT=Math.round(H*0.29),railB=Math.round(H*0.857);
+  ctx.save();ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle='#0d1626';ctx.fillRect(0,0,W,H);
+  // 传送带
+  ctx.fillStyle='#232a36';ctx.fillRect(0,railT,W,railB-railT);
+  ctx.strokeStyle='#2f3846';ctx.lineWidth=2;const off=(C.t*14)%34;
+  for(let x=-off;x<W+34;x+=34){ctx.beginPath();ctx.moveTo(x,railT);ctx.lineTo(x,railB);ctx.stroke()}
+  ctx.fillStyle='#8592a6';ctx.fillRect(0,railB-3,W,6);
+  // 饼干（世界坐标：1 单位 = k 像素；放大时镜头跟针头）
+  const z=P.zoom,k0=Math.min(W*0.37/88,(railB-railT)*0.78/54),k=k0*z,cx=W/2,cy=(railT+railB)/2+4,
+    ox=cx-(z>1?P.n.x*k:0),oy=cy-(z>1?P.n.y*k:0);
+  ctx.save();ctx.beginPath();ctx.rect(0,railT+3,W,railB-railT-6);ctx.clip();
+  ctx.translate(ox,oy);ctx.scale(k,k);
+  const g=ctx.createLinearGradient(0,-27,0,27);g.addColorStop(0,'#f6cf7d');g.addColorStop(1,'#d9a24a');
+  ctx.fillStyle=g;rrect(-44,-27,88,54,14/k0);ctx.fill();ctx.strokeStyle='#b07a2c';ctx.lineWidth=3/k;ctx.stroke();
+  ctx.strokeStyle='#c8913d66';ctx.lineWidth=2/k;rrect(-44+12/k0,-27+12/k0,88-24/k0,54-24/k0,8/k0);ctx.stroke();
+  ctx.fillStyle='#fff7e4cc';SALT.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill()});
+  // 目标：按要求的力度填底色，虚线圈，中间写白 / 灰 / 黑
+  P.tg.forEach(t=>{if(t.hit)return;const i=DEPTH_I[t.f]??2;
+    ctx.fillStyle=['rgba(255,250,235,.55)','rgba(110,104,96,.45)','rgba(10,6,3,.45)'][i];ctx.beginPath();ctx.ellipse(t.x,t.y,HR,HR*.9,0,0,7);ctx.fill();
+    ctx.setLineDash([5/k,4/k]);ctx.strokeStyle='rgba(60,30,5,.85)';ctx.lineWidth=2/k;ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=['#7a5a2a','#f3ead6','#ffc61a'][i];ctx.font=`800 ${HR*.9}px -apple-system,"PingFang SC",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.f,t.x,t.y+0.2)});
+  P.holes.forEach(h=>holeHi(h.x,h.y,HR,DEPTH_I[h.f]??2));
+  ctx.restore();
+  ctx.fillStyle='#8592a6';ctx.fillRect(0,railT-3,W,6);
+  // 针头：黄圈 = 真实孔大小，四根刻度，白色圆心
+  const nx=ox+P.n.x*k,ny=oy+P.n.y*k,r=HR*k;
+  if(P.lock){ctx.fillStyle='#7fb0ff1f';ctx.strokeStyle='#7fb0ffcc';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.beginPath();ctx.arc(ox+P.lock.x*k,oy+P.lock.y*k,5*k,0,7);ctx.fill();ctx.stroke();ctx.setLineDash([])}
+  if(P.charging){const f=forceOf(P.charge),q=Math.min(1,P.charge/(0.9*(1-[0,.25,.4,.55][aug('pump')])));
+    ctx.strokeStyle={白:'#fff7e4',灰:'#a8a29a',黑:'#1a1208'}[f];ctx.lineWidth=4;ctx.beginPath();ctx.arc(nx,ny,r+7,-Math.PI/2,-Math.PI/2+q*Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#ffd23f';ctx.font='800 14px -apple-system,"PingFang SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('蓄力 · '+f,nx,ny-r-12)}
+  ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(nx,ny,r,0,7);ctx.stroke();
+  ctx.strokeStyle='#ffd23faa';ctx.lineWidth=1.2;ctx.beginPath();
+  ctx.moveTo(nx-r-6,ny);ctx.lineTo(nx-r+4,ny);ctx.moveTo(nx+r-4,ny);ctx.lineTo(nx+r+6,ny);ctx.moveTo(nx,ny-r-6);ctx.lineTo(nx,ny-r+4);ctx.moveTo(nx,ny+r-4);ctx.lineTo(nx,ny+r+6);ctx.stroke();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(nx,ny,2,0,7);ctx.fill();
+  // 上方排队：顾客站在上轨后面（轨道盖住脚），像素图放大 2 倍
+  const SL=[0.376,0.5,0.622];
+  C.cust.forEach((c,i)=>{const im=SPR[c.kind];if(!im||!im.naturalWidth)return;const sc=Math.min(2,(railT-70)/(im.naturalHeight*0.86)),sw=Math.round(im.naturalWidth*sc),sh=Math.round(im.naturalHeight*sc),x=W*SL[i],feet=railT-3+Math.round(sh*0.14); // 放大 2 倍，高的角色缩一点，保证气泡不出屏
+    ctx.save();ctx.beginPath();ctx.rect(0,0,W,railT-3);ctx.clip();ctx.imageSmoothingEnabled=false;ctx.drawImage(im,Math.round(x-sw/2),Math.round(feet-sh),sw,sh);ctx.restore();
+    const head=feet-sh,bw=60,by=head-14;
+    ctx.fillStyle='#ffffff22';rrect(x-bw/2,by,bw,7,3.5);ctx.fill();ctx.fillStyle=c.pat/c.max<0.3?'#ff5f5f':'#6dd36a';rrect(x-bw/2+1,by+1,(bw-2)*Math.max(0,c.pat/c.max),5,2.5);ctx.fill();
+    const label=c.custom?`${c.hole}孔 ${c.f}×6`:'普通 ★';ctx.font='800 13px -apple-system,"PingFang SC",sans-serif';const tw=ctx.measureText(label).width+20,th=22,ty=by-th-6;
+    ctx.fillStyle=c.custom?'#ffd23f':'#fff3d6';rrect(x-tw/2,ty,tw,th,6);ctx.fill();
+    if(i===0){ctx.strokeStyle='#ffd23f';ctx.lineWidth=3;rrect(x-tw/2-3,ty-3,tw+6,th+6,8);ctx.stroke();
+      ctx.fillStyle='#ffd23f';ctx.beginPath();ctx.moveTo(x-7,ty-16);ctx.lineTo(x+7,ty-16);ctx.lineTo(x,ty-7);ctx.fill()}
+    ctx.fillStyle='#3a2a00';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,x,ty+th/2+0.5)});
+  C.pops.forEach(p=>{const i=C.cust.findIndex(c=>c.id===p.id),x=W*SL[i>=0?i:Math.min(2,p.slot)],y=railT*0.35-(1.6-p.t)*18;ctx.globalAlpha=Math.min(1,p.t*2);ctx.textAlign='center';ctx.textBaseline='middle';
+    if(p.emo==='LAUGH'){ctx.font='800 18px -apple-system,"PingFang SC",sans-serif';ctx.lineWidth=4;ctx.strokeStyle='#0d1626';ctx.strokeText('奶龙大笑 哈哈哈！',x,y);ctx.fillStyle='#ffd23f';ctx.fillText('奶龙大笑 哈哈哈！',x,y)}
+    else{ctx.font='30px sans-serif';ctx.fillText(p.emo,x,y)}ctx.globalAlpha=1});
+  // 左上：纯文字 HUD
+  const line=(parts,y)=>{let x=16;ctx.font='600 15px -apple-system,"PingFang SC",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+    parts.forEach(([t,c])=>{ctx.fillStyle=c?'#ffd23f':'#eef3ff';ctx.fillText(t,x,y);x+=ctx.measureText(t).width})};
+  const left=Math.max(0,Math.ceil(DAY_TIME-C.t)),done=P.tg.filter(t=>t.hit).length;
+  line([[`${fmtClock(G.clock)} · ${G.sess?'下午':'上午'}场 · 剩 `],[String(left),1],[' 秒']],22);
+  line([['金币 '],[String(G.coins),1],[` · 货架 ${C.shelf.length} 块`]],45);
+  line([[`第 ${C.n} 块 · `],[`${done}/${P.tg.length}`,1],[' 孔'+(P.wrong?` · 扎歪 ${P.wrong}`:'')]],68);
+  if(C.logT>0){ctx.font='800 16px -apple-system,"PingFang SC",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=4;ctx.strokeStyle='#0d1626';ctx.strokeText(C.log,W/2,railB+(H-railB)*0.28);ctx.fillStyle='#ffd23f';ctx.fillText(C.log,W/2,railB+(H-railB)*0.28)}
   ctx.restore();
 }
 function custHead(o,line){return `<h2>${SHOPS[shop].name}</h2>
@@ -815,6 +856,7 @@ function drawPunch(dt){
   P.n.x+=P.v.x*dt+P.trem.x*dt*6;P.n.y+=P.v.y*dt+P.trem.y*dt*6;
   if(P.lock){const dx=P.n.x-P.lock.x,dy=P.n.y-P.lock.y,d=Math.hypot(dx,dy),m=5;if(d>m){P.n.x=P.lock.x+dx/d*m;P.n.y=P.lock.y+dy/d*m}}
   P.n.x=Math.max(-60,Math.min(60,P.n.x));P.n.y=Math.max(-40,Math.min(40,P.n.y));
+  if(P.counter)return; // 营业界面整块在 counterHud 里用高清画布画
   // scene
   const z=P.zoom,band=P.counter?Math.round(LH*0.34):0,cx=P.counter?Math.round(LW*0.48):LW/2,cy=P.counter?Math.round(band+(LH-band)*0.47):LH/2,
     s=(P.counter?Math.max(0.8,Math.min(LW*0.4/92,(LH-band-8)*0.78/58)):Math.max(1,Math.min(LW/120,LH/80)))*z;
