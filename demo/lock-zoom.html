@@ -35,7 +35,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud"></div>
-<div id="topR"><button class="ghost" id="calB">重新校准</button><button class="ghost" id="invX">左右反转</button><button class="ghost" id="invY">上下反转</button></div>
+<div id="topR"><button class="ghost" id="calB">重新校准</button><button class="ghost" id="tuneB">陀螺仪设置</button></div>
 <div id="tip"></div>
 <button id="lockB" class="pad">固定</button>
 <button id="sizeB" class="pad">针头<br>大</button>
@@ -52,6 +52,7 @@
     <p><b>右手「打孔」</b>：点一下扎下，对准虚线目标中心。</p>
     <p style="color:#8fa0bf">建议横屏、双手握持。点开始时以当前握姿校准。</p>
     <button class="btn" id="startBtn">开启陀螺仪并开始</button>
+    <p style="text-align:center;margin-top:10px"><button class="ghost" id="tuneB2">陀螺仪设置</button></p>
     <p id="startMsg" style="color:#ff9b8a"></p>
   </div>
 </div>
@@ -65,6 +66,7 @@
   </div>
 </div>
 
+<script src="../tune.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const cv=$('c'),ctx=cv.getContext('2d');
@@ -74,14 +76,7 @@ addEventListener('resize',resize);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 // ---------- tuning (shares the main game's 「调手感」 settings via localStorage) ----------
-const TUNE_DEF={dead:1.5,full:22,speed:210,curve:1,follow:8,tremor:1,invX:false,invY:false};
-const TUNE=(()=>{try{return Object.assign({},TUNE_DEF,JSON.parse(localStorage.getItem('sodaTune')||'{}'))}catch(e){return Object.assign({},TUNE_DEF)}})();
-function saveTune(){try{localStorage.setItem('sodaTune',JSON.stringify(TUNE))}catch(e){}}
-function tiltAxis(v,inv){const a=Math.abs(v)-TUNE.dead;if(a<=0)return 0;const k=Math.min(1,a/Math.max(1,TUNE.full-TUNE.dead));return Math.sign(v)*Math.pow(k,TUNE.curve)*(inv?-1:1)}
-function syncInv(){$('invX').style.color=TUNE.invX?'#ffd23f':'';$('invY').style.color=TUNE.invY?'#ffd23f':''}
-$('invX').onclick=()=>{TUNE.invX=!TUNE.invX;saveTune();syncInv()};
-$('invY').onclick=()=>{TUNE.invY=!TUNE.invY;saveTune();syncInv()};
-syncInv();
+const TUNE=SodaTune.TUNE,tiltAxis=SodaTune.tiltAxis;
 
 // ---------- gyroscope ----------
 let raw={x:0,y:0},base={x:0,y:0},gotTilt=false,listening=false;
@@ -107,6 +102,9 @@ async function enableTilt(){
 }
 function calibrate(){base={x:raw.x,y:raw.y}}
 $('calB').onclick=()=>{calibrate();flash('已校准',0.8)};
+SodaTune.attach({tilt:()=>({x:raw.x-base.x,y:raw.y-base.y}),calibrate:()=>{calibrate();buzz(30)}});
+$('tuneB2').onclick=async()=>{await enableTilt();SodaTune.open()};
+$('tuneB').onclick=()=>SodaTune.isOpen()?SodaTune.close():SodaTune.open();
 
 // ---------- haptics (same trick as the main game) ----------
 function iosTick(){try{const l=document.createElement('label'),i=document.createElement('input');i.type='checkbox';i.setAttribute('switch','');l.style.display='none';l.appendChild(i);document.head.appendChild(l);l.click();l.remove()}catch(e){}}
