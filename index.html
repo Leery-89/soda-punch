@@ -184,6 +184,18 @@ body{background:var(--tray);color:var(--paper);font-family:var(--f-body);
   pointer-events:none;opacity:0;transition:opacity .2s, transform .4s;text-shadow:0 2px 0 #000}
 .toast.show{opacity:1;transform:translate(-50%,-10px)}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.tune{position:fixed;left:0;right:0;bottom:0;z-index:50;max-height:72vh;overflow-y:auto;background:rgba(20,24,36,.97);border-top:2px solid var(--volt);border-radius:18px 18px 0 0;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;grid-template-columns:1fr;gap:10px;touch-action:pan-y}
+@media (min-width:640px){.tune{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}}
+.tune h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:22px;color:var(--volt)}
+.tune p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+.tune .col{display:flex;flex-direction:column;gap:8px;min-width:0}
+#tunePrev{width:100%;height:130px;border-radius:12px;background:#262d42;display:block}
+.trow{display:grid;grid-template-columns:5.5em 1fr 3.6em;gap:8px;align-items:center;font-size:13px}
+.trow small{grid-column:1/-1;margin-top:-6px;color:var(--muted);font-size:11px}
+.trow output{text-align:right;font-variant-numeric:tabular-nums;color:var(--volt);font-weight:800}
+.trow input{width:100%;accent-color:var(--volt);touch-action:pan-x}
+.tune .modes button{font-size:15px;padding:9px 14px}
 @media (max-height:420px){.punch{width:92px;height:92px;font-size:22px}.zbtn{width:48px;height:48px}}
 </style>
 
@@ -200,6 +212,7 @@ body{background:var(--tray);color:var(--paper);font-family:var(--f-body);
   <div class="grp">
     <span class="lives" id="lives" aria-label="剩余饼干"></span>
     <button class="chip" id="modeChip" type="button">陀螺仪未开启</button>
+    <button class="chip" id="tuneChip" type="button">调手感</button>
     <button class="chip" id="menuChip" type="button">菜单</button>
   </div>
 </div>
@@ -281,6 +294,7 @@ body{background:var(--tray);color:var(--paper);font-family:var(--f-body);
       </div>
       <button class="link" id="drawBtn" type="button">自定义饼干形状（已有 <span id="customCount">0</span> 个）</button>
       <button class="link" id="tipBtn" type="button">针头形状：圆</button>
+      <button class="link" id="tuneBtn" type="button" style="color:var(--volt)">陀螺仪手感调节（死区、灵敏度、手抖…）</button>
       <button class="link" id="vibeBtn" type="button">震动：开</button>
       <button class="link" id="blinkToggle" type="button">眨眼挑战：关</button>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -453,6 +467,27 @@ body{background:var(--tray);color:var(--paper);font-family:var(--f-body);
   </div>
 </div>
 
+<div class="tune" id="tuneOv" hidden role="dialog" aria-label="陀螺仪手感调节">
+  <div class="col">
+    <h2>陀螺仪手感</h2>
+    <p>拖动滑条马上生效，倾斜手机看小框里的针管怎么动。游戏中打开时计时暂停。设置存在这部手机上。</p>
+    <canvas id="tunePrev"></canvas>
+    <p id="tuneRead">倾角 —</p>
+  </div>
+  <div class="col">
+    <div id="tuneRows" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="modes" style="gap:8px">
+      <button class="btn ghost" id="tuneInvX" type="button">左右反转：关</button>
+      <button class="btn ghost" id="tuneInvY" type="button">上下反转：关</button>
+    </div>
+    <div class="modes" style="gap:8px">
+      <button class="btn go" id="tuneDone" type="button">好了</button>
+      <button class="btn ghost" id="tuneCal" type="button">以当前握姿校准</button>
+      <button class="btn ghost" id="tuneReset" type="button">恢复默认</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (()=>{
 const cv=document.getElementById('game'),ctx=cv.getContext('2d');
@@ -556,6 +591,12 @@ function loadBest(){try{return +localStorage.getItem('sodaBest')||0}catch(e){ret
 function saveBest(v){try{localStorage.setItem('sodaBest',v)}catch(e){}}
 
 // ---------- input: tilt ----------
+// tilt feel, adjustable in the 调手感 panel and kept on this phone
+const TUNE_DEF={dead:1.5,full:22,speed:210,curve:1,follow:8,tremor:1,invX:false,invY:false};
+const TUNE=(()=>{try{return Object.assign({},TUNE_DEF,JSON.parse(localStorage.getItem('sodaTune')||'{}'))}catch(e){return Object.assign({},TUNE_DEF)}})();
+function saveTune(){try{localStorage.setItem('sodaTune',JSON.stringify(TUNE))}catch(e){}}
+// tilt angle -> -1..1 stick value: dead zone, full-speed angle, response curve, inversion
+function tiltAxis(v,inv){const a=Math.abs(v)-TUNE.dead;if(a<=0)return 0;const k=Math.min(1,a/Math.max(1,TUNE.full-TUNE.dead));return Math.sign(v)*Math.pow(k,TUNE.curve)*(inv?-1:1)}
 let tiltMode=false,tilt={x:0,y:0},raw={x:0,y:0},base=null,gotTilt=false,calibrated=false,listening=false;
 function onOri(e){
   if(e.beta==null||e.gamma==null)return;
@@ -827,7 +868,7 @@ function update(dt){
   }
   if(S.charging){S.charge+=dt;const d=depthOf(S.charge);if(d!==S._cd){S._cd=d;pb.textContent='蓄力 · '+DEPTH[d];pb.dataset.d=d;buzz(d?(d===2?30:15):0);if(d)sfx('tick')}}
   // blink challenge: eyes dry out unless you press 眨眼; dry eyes blur, shake and smear the colours
-  if(blinkOn&&S.running&&S.mode!=='create'){
+  if(blinkOn&&S.running&&S.mode!=='create'&&!S.tuning){
     S.eye=Math.min(1.25,(S.eye||0)+dt/9*(S.eyeRate||1));
     const k=Math.max(0,(S.eye-.45)/.55);
     if(k>0){S.shake=Math.max(S.shake,k*.7);
@@ -836,7 +877,7 @@ function update(dt){
     if(S.eye>=1&&!S._dryWarned){S._dryWarned=true;toast('眼睛好干! 快按「眨眼」',1200);buzz([80,60,80])}
     const pct=Math.min(100,Math.round(S.eye*100));if(pct!==S._eyePct){S._eyePct=pct;$('eye').textContent=pct+'%';$('eyeStat').classList.toggle('warn',pct>=60);$('blinkBtn').classList.toggle('dry',pct>=60)}
   }
-  if(S.running&&S.mode==='game'&&S.timeLimit){
+  if(S.running&&S.mode==='game'&&S.timeLimit&&!S.tuning){
     S.timeLeft-=dt;
     if(S.timeLeft<=0){S.timeLeft=0;hud();gameOver('time');return}
     const sec=Math.ceil(S.timeLeft);if(sec!==S._sec){S._sec=sec;$('time').textContent=sec;$('timeStat').classList.toggle('warn',sec<=10)}
@@ -844,15 +885,14 @@ function update(dt){
   if(S.running&&S.breakAnim===0){
     const n=S.needle;
     // speed shrinks as you zoom in -> finer aim
-    const sp=210/Math.sqrt(S.zoom);
+    const sp=TUNE.speed/Math.sqrt(S.zoom);
     if(tiltMode){
-      const dz=v=>Math.abs(v)<1.5?0:(v-Math.sign(v)*1.5);
-      const tx=Math.max(-1,Math.min(1,dz(tilt.x)/22)),ty=Math.max(-1,Math.min(1,dz(tilt.y)/22));
-      S.vel.x+=(tx*sp-S.vel.x)*Math.min(1,dt*8);S.vel.y+=(ty*sp-S.vel.y)*Math.min(1,dt*8);
+      const tx=tiltAxis(tilt.x,TUNE.invX),ty=tiltAxis(tilt.y,TUNE.invY),fl=Math.min(1,dt*TUNE.follow);
+      S.vel.x+=(tx*sp-S.vel.x)*fl;S.vel.y+=(ty*sp-S.vel.y)*fl;
     }else{S.vel.x=0;S.vel.y=0}
     // hand tremor grows with level
     S.noiseT+=dt;const dry=blinkOn?Math.max(0,((S.eye||0)-.45)/.55):0;
-    const tr=(Math.min(3+S.level*2.2,18)*(1-.22*(S.steady||0))+dry*26)/Math.sqrt(S.zoom);
+    const tr=(Math.min(3+S.level*2.2,18)*TUNE.tremor*(1-.22*(S.steady||0))+dry*26)/Math.sqrt(S.zoom);
     n.x+=S.vel.x*dt+Math.sin(S.noiseT*2.3)*Math.cos(S.noiseT*1.1)*tr*dt*3;
     n.y+=S.vel.y*dt+Math.cos(S.noiseT*1.9)*Math.sin(S.noiseT*0.7)*tr*dt*3;
     const shp=S.cracker.shape;n.x=Math.max(-shp.w/2-50,Math.min(shp.w/2+50,n.x));n.y=Math.max(-BELT_H/2,Math.min(BELT_H/2,n.y));
@@ -1122,7 +1162,7 @@ $('tSave').addEventListener('click',()=>{closePanel();
   else openShare(cr.free.length+' 个孔','创作 · '+cr.shape.name);
 });
 $('tDraw').addEventListener('click',()=>{closePanel();openPad()});
-$('menuChip').addEventListener('click',()=>{if(!S.running)return;if(S.shop){$('count').hidden=true;nightEnd();toast('提前收工');return}S.running=false;cv.style.filter='';$('count').hidden=true;hud();$('tools').hidden=true;$('toolPanel').hidden=true;$('tiltOv').hidden=true;$('startOv').hidden=false});
+$('menuChip').addEventListener('click',()=>{if(!S.running)return;closeTune();if(S.shop){$('count').hidden=true;nightEnd();toast('提前收工');return}S.running=false;cv.style.filter='';$('count').hidden=true;hud();$('tools').hidden=true;$('toolPanel').hidden=true;$('tiltOv').hidden=true;$('startOv').hidden=false});
 
 // ---------- custom cracker shapes (drawn with a finger in the editor only) ----------
 function makeCustomShape(name,pts){
@@ -1633,7 +1673,59 @@ $('repBack').addEventListener('click',()=>{$('reportOv').hidden=true;openMap()})
 
 let last=performance.now();
 const bubble=$('bubble');
+// ---------- 调手感: live tuning panel for the tilt controls ----------
+const TUNE_ROWS=[
+  ['dead','死区',0,6,.25,'°','手机歪这么多以内针管不动，防止端不稳时乱飘'],
+  ['full','满速倾角',8,45,1,'°','歪到这个角度针管达到最快；越小越灵敏'],
+  ['speed','最快速度',80,400,10,'','针管最快能跑多快'],
+  ['curve','细腻曲线',1,2.5,.1,'','1 = 线性；越大小角度越慢越好瞄，大角度照样快'],
+  ['follow','跟手',2,20,1,'','越大针管越快跟上手机，越小越有惯性、越顺滑'],
+  ['tremor','手抖强度',0,2,.1,'×','乘在关卡手抖上；1× 是原设定，0 完全不抖'],
+];
+const fmtT=(k,v)=>k==='dead'||k==='curve'||k==='tremor'?(+v).toFixed(k==='dead'?2:1):String(Math.round(v));
+TUNE_ROWS.forEach(([k,name,mn,mx,st,unit,tip])=>{
+  const row=document.createElement('label');row.className='trow';
+  row.innerHTML=`<span>${name}</span><input type="range" min="${mn}" max="${mx}" step="${st}"><output></output><small>${tip}</small>`;
+  const inp=row.querySelector('input'),out=row.querySelector('output');
+  const show=()=>{inp.value=TUNE[k];out.textContent=fmtT(k,TUNE[k])+unit};show();row._show=show;
+  inp.addEventListener('input',()=>{TUNE[k]=+inp.value;if(k==='full'&&TUNE.full<=TUNE.dead+1)TUNE.full=TUNE.dead+1;out.textContent=fmtT(k,TUNE[k])+unit;saveTune()});
+  $('tuneRows').appendChild(row);
+});
+function tuneLabels(){$('tuneInvX').textContent='左右反转：'+(TUNE.invX?'开':'关');$('tuneInvY').textContent='上下反转：'+(TUNE.invY?'开':'关');[...$('tuneRows').children].forEach(r=>r._show&&r._show())}
+tuneLabels();
+$('tuneInvX').addEventListener('click',()=>{TUNE.invX=!TUNE.invX;saveTune();tuneLabels()});
+$('tuneInvY').addEventListener('click',()=>{TUNE.invY=!TUNE.invY;saveTune();tuneLabels()});
+$('tuneReset').addEventListener('click',()=>{Object.assign(TUNE,TUNE_DEF);saveTune();tuneLabels();toast('已恢复默认')});
+$('tuneCal').addEventListener('click',()=>{base={x:raw.x,y:raw.y};tilt.x=0;tilt.y=0;tP.x=0;tP.y=0;toast('已校准');buzz(30)});
+const tPrev=$('tunePrev'),tpx=tPrev.getContext('2d'),tP={x:0,y:0,vx:0,vy:0,t:0};
+async function openTune(){
+  if(!gotTilt)await enableTilt();
+  $('tuneOv').hidden=false;tuneLabels();if(S&&S.running)S.tuning=true;
+}
+function closeTune(){$('tuneOv').hidden=true;if(S)S.tuning=false}
+$('tuneBtn').addEventListener('click',openTune);
+$('tuneChip').addEventListener('click',()=>{$('tuneOv').hidden?openTune():closeTune()});
+$('tuneDone').addEventListener('click',closeTune);
+// the preview box: a little cracker and a needle driven by the same feel settings (level-1 tremor)
+function tunePreview(dt){
+  const r=tPrev.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);
+  if(tPrev.width!==Math.round(r.width*d)){tPrev.width=Math.round(r.width*d);tPrev.height=Math.round(r.height*d)}
+  const w=r.width,h=r.height,sc=Math.min(w/(CW+40),h/(CH+40));
+  const tx=tiltMode?tiltAxis(tilt.x,TUNE.invX):0,ty=tiltMode?tiltAxis(tilt.y,TUNE.invY):0,fl=Math.min(1,dt*TUNE.follow);
+  tP.vx+=(tx*TUNE.speed-tP.vx)*fl;tP.vy+=(ty*TUNE.speed-tP.vy)*fl;tP.t+=dt;const tr=5.2*TUNE.tremor;
+  tP.x=Math.max(-CW/2-20,Math.min(CW/2+20,tP.x+tP.vx*dt+Math.sin(tP.t*2.3)*Math.cos(tP.t*1.1)*tr*dt*3));
+  tP.y=Math.max(-CH/2-20,Math.min(CH/2+20,tP.y+tP.vy*dt+Math.cos(tP.t*1.9)*Math.sin(tP.t*.7)*tr*dt*3));
+  tpx.setTransform(d,0,0,d,0,0);tpx.clearRect(0,0,w,h);tpx.save();tpx.translate(w/2,h/2);tpx.scale(sc,sc);
+  tpx.fillStyle='#e0b25c';tpx.beginPath();tpx.roundRect?tpx.roundRect(-CW/2,-CH/2,CW,CH,14):tpx.rect(-CW/2,-CH/2,CW,CH);tpx.fill();
+  tpx.setLineDash([6,6]);tpx.strokeStyle='rgba(60,40,10,.55)';tpx.lineWidth=2;
+  for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j+=2){tpx.beginPath();tpx.arc(i*95,j*45,16,0,7);tpx.stroke()}
+  tpx.setLineDash([]);tpx.strokeStyle='#ffc61a';tpx.lineWidth=3;tpx.beginPath();tpx.arc(tP.x,tP.y,14,0,7);tpx.stroke();
+  tpx.fillStyle='#ffc61a';tpx.beginPath();tpx.arc(tP.x,tP.y,3,0,7);tpx.fill();tpx.restore();
+  $('tuneRead').textContent=tiltMode?`倾角 左右 ${tilt.x.toFixed(1)}° · 上下 ${tilt.y.toFixed(1)}°　推杆 ${Math.round(tx*100)}% / ${Math.round(ty*100)}%`:'陀螺仪还没开启：点「以当前握姿校准」或开始界面的「校准」';
+}
+
 function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(S){update(dt);draw()}
+  if(!$('tuneOv').hidden)tunePreview(dt);
   if(!$('startOv').hidden){const k=26/20;const bx=Math.max(-26,Math.min(26,tilt.x*k)),by=Math.max(-26,Math.min(26,tilt.y*k));bubble.style.transform=`translate(${bx}px,${by}px)`}
   requestAnimationFrame(loop)}
 
