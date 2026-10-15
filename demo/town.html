@@ -88,20 +88,24 @@ const SHOPS={
 const UPS=[
   {k:'wrist',name:'钢铁手腕',eff:'手抖 −35%',cost:[80,180]},
   {k:'zoom',name:'高倍放大镜',eff:'解锁放大键：放大后针头变慢、看得更清',cost:[120,300]},
-  {k:'night',name:'夜猫子基因',eff:'每晚多做 1 块饼干',cost:[60,140]},
+  {k:'night',name:'夜猫子基因',eff:'每块打孔时间 +5 秒',cost:[60,140]},
+];
+const SHOP_UPS=[
+  {k:'sign',name:'招牌',eff:'估值 +20%',cost:[100,220,450]},
+  {k:'bell',name:'门铃',eff:'每天多来 1 单',cost:[80,200]},
 ];
 const EDICTS=[
-  {t:'今天让一位客人超满意',r:30,ok:d=>d.best>=4},
+  {t:'今天让一位客人超满意（超赞或抢着买）',r:30,ok:d=>d.best>=4},
   {t:'今天不许有客人生气',r:20,ok:d=>d.orders>0&&d.angry===0},
   {t:'今天卖出 3 单',r:15,ok:d=>d.orders>=3},
   {t:'今天赚到 80 金币',r:25,ok:d=>d.rev>=80},
 ];
-const DEF={day:1,coins:50,rep:0,open:{home:1,biscuit:1,hair:0,tattoo:0},up:{wrist:0,zoom:0,night:0},edict:0,opened:false,phase:'night',nightDone:false,stock:[],customs:[],pickups:[]};
-let G=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongTown3')||'null');if(s)return Object.assign({},DEF,s)}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
+const DEF={day:1,coins:50,rep:0,open:{home:1,biscuit:1,hair:0,tattoo:0},up:{wrist:0,zoom:0,night:0,sign:0,bell:0},edict:0,opened:false,phase:'day',ratio:1};
+let G=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongTown4')||'null');if(s)return Object.assign({},DEF,s)}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
 let D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};
-function save(){try{localStorage.setItem('nailongTown3',JSON.stringify(G))}catch(e){}}
+function save(){try{localStorage.setItem('nailongTown4',JSON.stringify(G))}catch(e){}}
 function hud(){$('hDay').textContent=G.day+(G.phase==='night'?' 天 · 晚上🌙':' 天 · 白天☀️');$('hCoin').textContent=G.coins;$('hRep').textContent=G.rep;
-  const e=EDICTS[G.edict];$('edict').textContent=G.phase==='night'?'🌙 晚上：去饼干店后厨打孔备货（货架 '+G.stock.length+' 块）':'✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）　货架 '+G.stock.length+' 块'}
+  const e=EDICTS[G.edict];$('edict').textContent=G.phase==='night'?'🌙 晚上强化：主角家神台升级、饼干店升级店铺、开新店，然后睡觉':'✝ 上帝今日旨意：'+e.t+'（+'+e.r+' 金币）'}
 function toast(t,s=1.2){const el=$('toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>el.style.opacity=0,s*1000)}
 
 // ---------- pixel helpers ----------
@@ -223,10 +227,11 @@ function bind(id,fn){const el=$(id);if(el)el.onclick=fn}
 function welcome(){
   show(`<h2>奶龙小镇 · 可浏览 demo</h2>
   <p>2078 年，上帝说：<b>苏打饼干一定要有孔。</b>你是针头奶龙，替上帝给小镇打孔。</p>
-  <p>玩法像《潜水员戴夫》：<b>晚上</b>在饼干店后厨给饼干打孔备货，<b>白天</b>摆摊卖饼干：每块饼干晚上按评分估好价，白天你来定价，比估值便宜卖得快、贵了卖得慢。定制单白天接、当晚做、第二天客人来取并给反馈。打烊出账本，回<b>主角家</b>神台祈祷升级、睡觉。攒钱开<b>植发店</b>和<b>纹身店</b>（白天营业，客人当场打孔）。</p>
-  <p>俯视角小镇：点建筑奶龙会走过去，点空地闲逛。打孔沿用核心玩法：针头只靠<b>倾斜手机</b>移动，左手「固定」，右手「打孔」。电脑上用方向键。</p>
+  <p><b>白天边做边卖</b>：开店前定好售价比，客人排队点单，你现场打孔，每块打完按评分估值、按售价上货架，比估值便宜卖得快、贵了卖得慢；定制单当场做，客人给表情反馈。打烊出账本。</p>
+  <p><b>晚上强化</b>：回主角家神台祈祷升级，去饼干店升级店铺，攒钱开<b>植发店</b>、<b>纹身店</b>，然后睡觉。</p>
+  <p>俯视角小镇：点建筑奶龙会走过去，点空地闲逛。打孔只靠<b>倾斜手机</b>，左手「固定」，右手「打孔」。电脑上用方向键。</p>
   <div class="row"><button class="px" id="goB">进入小镇（第 ${G.day} 天${G.phase==='night'?'晚上':'白天'}）</button></div>
-  <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，具体以 GAMEPLAY.md 为准。</p>`);
+  <p style="color:#a99cc6;font-size:12px">这是看流程用的原型：画面、数值都是占位，以策划案和 GAMEPLAY.md 为准。</p>`);
   bind('goB',hide);
 }
 function msg(title,text,btn='好',fn=hide){show(`<h2>${title}</h2><p>${text}</p><div class="row"><button class="px gray" id="xB">${btn}</button></div>`);bind('xB',fn)}
@@ -235,135 +240,114 @@ function enterShop(k){
   if(k==='home')return homePanel();
   if(!G.open[k]){
     const p=SHOPS[k].price;
+    if(G.phase!=='night')return msg(`${SHOPS[k].name}（未开张）`,`${SHOPS[k].desc}。开新店是晚上的事：打烊后带着金币（${p}）再来。`);
     show(`<h2>${SHOPS[k].name}（未开张）</h2><p>${SHOPS[k].desc}。</p><p>正式版里要先打完这家店的一章（约 5 关，最后一关上帝验收）才能开张；demo 里直接花金币开。</p>
       <div class="row"><button class="px" id="buyB" ${G.coins<p?'disabled':''}>花 ${p} 金币开张</button><button class="px gray" id="xB">走了</button></div>`);
-    bind('buyB',()=>{G.coins-=p;G.open[k]=1;save();hud();toast(SHOPS[k].name+' 开张！');enterShop(k)});bind('xB',hide);return;
+    bind('buyB',()=>{G.coins-=p;G.open[k]=1;save();hud();toast(SHOPS[k].name+' 开张！明天白天可以营业');hide()});bind('xB',hide);return;
   }
   if(G.phase==='night'){
-    if(k!=='biscuit')return msg(SHOPS[k].name,'晚上不营业。晚上去<b>饼干店</b>后厨打孔备货。');
-    if(G.nightDone)return msg('饼干店后厨','今晚的饼干已经做完了。','天亮了',dawn);
-    const n=3+G.up.night,c=G.customs.length;
-    show(`<h2>饼干店后厨 · 晚上</h2><p>今晚要做 <b>${n}</b> 块饼干${c?`，其中 <b>${c}</b> 块是定制单，先做`:''}。扎得越准星级越高，裂掉的不能卖。</p>
-      <p>货架上现在有：${G.stock.length?G.stock.map(s=>stars(s.st)).join('、'):'空的'}</p>
-      <div class="row"><button class="px" id="goB">开工打孔</button><button class="px gray" id="xB">等会儿</button></div>`);
-    bind('goB',startNight);bind('xB',hide);return;
+    if(k!=='biscuit')return msg(SHOPS[k].name,'晚上打烊了。晚上回<b>主角家</b>祈祷升级，或者在<b>饼干店</b>升级店铺。');
+    return shopUpPanel();
   }
-  if(G.opened)return msg(SHOPS[k].name,'今天已经营业过了，一天只开一家店。回<b>主角家</b>睡觉，晚上再来。');
-  const note=k==='biscuit'?`货架上有 <b>${G.stock.length}</b> 块饼干（${G.stock.map(s=>stars(s.st)).join('、')||'空'}）${G.pickups.length?`，今天有 <b>${G.pickups.length}</b> 位定制客人来取货`:''}。`:'今天的客人会当场坐下来让你打孔。';
-  show(`<h2>${SHOPS[k].name} · 白天</h2><p>${SHOPS[k].desc}。</p><p>${note}</p>
+  if(G.opened)return msg(SHOPS[k].name,'今天已经营业过了，一天只开一家店。打烊后就是晚上了。');
+  if(k==='biscuit')return pricePanel();
+  show(`<h2>${SHOPS[k].name} · 白天</h2><p>${SHOPS[k].desc}。今天的客人会当场坐下来让你打孔、当场付钱。</p>
     <div class="row"><button class="px" id="openB">开门营业</button><button class="px gray" id="xB">再想想</button></div>`);
-  bind('openB',()=>{G.opened=true;save();k==='biscuit'?startSelling():startSpot(k)});bind('xB',hide);
+  bind('openB',()=>{G.opened=true;save();startSpot(k)});bind('xB',hide);
 }
+function upRows(list){return list.map(u=>{const lv=G.up[u.k],c=u.cost[lv];
+  return `<div class="up"><div><b>${u.name}</b> Lv${lv}<br>${u.eff}</div>${c==null?'<span>满级</span>':`<button class="px blue" data-u="${u.k}" ${G.coins<c?'disabled':''}>${c} 金币</button>`}</div>`}).join('')}
+function bindUps(list,again,lines){document.querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>{
+  const u=list.find(u=>u.k===el.dataset.u),c=u.cost[G.up[u.k]];if(G.coins<c)return;
+  G.coins-=c;G.up[u.k]++;save();hud();toast(lines[Math.floor(Math.random()*lines.length)],1.6);again()})}
 function homePanel(){
-  const ups=UPS.map(u=>{const lv=G.up[u.k],c=u.cost[lv];
-    return `<div class="up"><div><b>${u.name}</b> Lv${lv}<br>${u.eff}</div>${c==null?'<span>满级</span>':`<button class="px blue" data-u="${u.k}" ${G.coins<c?'disabled':''}>${c} 金币</button>`}</div>`}).join('');
-  const canSleep=G.phase==='day'&&G.opened;
-  show(`<h2>主角家 · 十字架神台</h2><p>跪在神台前祈祷，上帝会对针头奶龙动手改造。</p>${ups}
-    <p style="color:#a99cc6;font-size:12px">${G.phase==='night'?'现在是晚上，先去饼干店后厨打孔备货。':canSleep?'今天营业完了，可以睡觉了。':'白天还没开店。'}</p>
-    <div class="row"><button class="px gray" id="sleepB">${canSleep?'睡觉，进入第 '+(G.day+1)+' 天晚上':'出门'}</button></div>`);
-  document.querySelectorAll('[data-u]').forEach(el=>el.onclick=()=>{
-    const u=UPS.find(u=>u.k===el.dataset.u),c=u.cost[G.up[u.k]];if(G.coins<c)return;
-    G.coins-=c;G.up[u.k]++;save();hud();
-    const lines=['上帝：准了。','上帝：这个改造不退不换。','上帝：去打孔吧，孩子。','上帝：别问，问就是旨意。'];
-    toast('✝ '+lines[Math.floor(Math.random()*lines.length)],1.6);homePanel()});
-  bind('sleepB',()=>{if(canSleep)sleep();else hide()});
+  const night=G.phase==='night';
+  show(`<h2>主角家 · 十字架神台</h2><p>跪在神台前祈祷，上帝会对针头奶龙动手改造。</p>${upRows(UPS)}
+    <p style="color:#a99cc6;font-size:12px">${night?'晚上了：升级完就睡觉。':'白天先去开店，晚上再回来强化也行。'}</p>
+    <div class="row"><button class="px gray" id="sleepB">${night?'睡觉，进入第 '+(G.day+1)+' 天':'出门'}</button></div>`);
+  bindUps(UPS,homePanel,['✝ 上帝：准了。','✝ 上帝：这个改造不退不换。','✝ 上帝：去打孔吧，孩子。','✝ 上帝：别问，问就是旨意。']);
+  bind('sleepB',()=>{if(night)sleep();else hide()});
 }
-function sleep(){G.stock=G.stock.filter(s=>s.nights<1).map(s=>({...s,nights:s.nights+1,v:Math.max(1,Math.round(s.v*0.7)),p:0}));G.day++;G.phase='night';G.opened=false;G.nightDone=false;D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};save();hud();hide();toast('第 '+G.day+' 天 · 晚上，去后厨打孔',1.6)}
-function dawn(){G.phase='day';G.edict=(G.edict+1+Math.floor(Math.random()*(EDICTS.length-1)))%EDICTS.length;save();hud();hide();toast('天亮了 · 上帝发来今日旨意',1.6)}
+function shopUpPanel(){
+  show(`<h2>饼干店 · 晚上升级店铺</h2>${upRows(SHOP_UPS)}<div class="row"><button class="px gray" id="xB">走了</button></div>`);
+  bindUps(SHOP_UPS,shopUpPanel,['装修队：搞定！','新东西装好了。']);bind('xB',hide);
+}
+function sleep(){G.day++;G.phase='day';G.opened=false;G.edict=(G.edict+1+Math.floor(Math.random()*(EDICTS.length-1)))%EDICTS.length;
+  D={orders:0,rev:0,angry:0,best:0,tips:0,mat:0};save();hud();hide();toast('第 '+G.day+' 天 · 早上，上帝发来今日旨意',1.6)}
 
-// ---------- night: punch biscuits into stock ----------
+// ---------- day: biscuit shop, punch and sell on the spot ----------
 const NAMES=['路过的奶龙','隔壁老奶龙','穿西装的奶龙','健身奶龙','奶龙小学生','神秘收藏家'];
 const HOLES=['圆','星','心','方'];
-let nightQ=[];
-function startNight(){
-  nightQ=[];const n=3+G.up.night;
-  G.customs.forEach(c=>nightQ.push({mode:'night',kind:'biscuit',custom:c}));
-  while(nightQ.length<n)nightQ.push({mode:'night',kind:'biscuit'});
-  G.customs=[];save();nextNight();
-}
-function nextNight(){
-  if(!nightQ.length){G.nightDone=true;save();return msg('今晚收工','饼干都上架了，已按评分估好价。货架：'+(G.stock.map(s=>stars(s.st)+' 估值 '+s.v).join('、')||'空的')+'。白天摆摊时可以调价。','天亮了',dawn)}
-  const o=nightQ[0],left=nightQ.length;
-  show(`<h2>后厨 · 还剩 ${left} 块</h2><p>${o.custom?`<b>定制单</b>（${o.custom.who}）：全部扎<b>${o.custom.hole}</b>形孔，要 ★★★，明天来取。`:'普通饼干：扎准了上架卖。'}</p>
-    <div class="row"><button class="px" id="takeB">开扎</button></div>`);
-  bind('takeB',()=>startPunch(o));
-}
-function nightResult(o,res){
-  const t=tierOf(res);nightQ.shift();D.mat+=5;
-  const st=t>=3?3:t===2?2:t===1?1:0;
-  if(o.custom)G.pickups.push({who:o.custom.who,hole:o.custom.hole,tier:t});
-  const v=Math.round(SHOPS.biscuit.base*(0.6+0.4*st)*(0.8+0.4*res.acc));
-  if(!o.custom&&st)G.stock.push({st,v,p:v,nights:0}),G.stock.sort((a,b)=>b.v-a.v),G.stock.length=Math.min(G.stock.length,10);
-  save();
-  msg(o.custom?'定制饼干做好了':st?`上架：${stars(st)} · 估值 ${v} 金币`:'饼干裂了 💥',`扎中 ${res.hit}/${res.total}，扎歪 ${res.wrong}，平均准度 ${Math.round(res.acc*100)}%。${o.custom?'明天客人来取时会给反馈。':st?'':'裂掉的饼干不能卖，原料白花了。'}`,'下一块',nextNight);
-}
-
-// ---------- day: stall with player-set prices ----------
-let shop=null,queue=[],stall=null;
+let shop=null,queue=[],day=null;
 function who(){return NAMES[Math.floor(Math.random()*NAMES.length)]}
-function startSelling(){
-  shop='biscuit';queue=G.pickups.map(p=>({type:'pickup',...p}));G.pickups=[];
-  queue.push({type:'order',who:who(),hole:HOLES[Math.floor(Math.random()*HOLES.length)]});
-  save();nextCustomer();
+function reaction(r){return r<0.8?['😍','抢着买']:r<1.1?['🙂','正常买走']:r<1.4?['🤔','犹豫了一下还是买了']:['😤','嫌贵']}
+function pricePanel(){
+  show(`<h2>饼干店 · 开门前定价</h2>
+    <p>今天要接 <b>${4+G.up.bell}</b> 单。每块饼干打完按评分估值，售价 = 估值 × 售价比。<b>低于估值卖得快，高于估值卖得慢</b>，营业中也能改。</p>
+    <div class="row" style="align-items:center"><button class="px gray" id="rM">−</button><b id="rV" style="font-size:24px;min-width:70px">×${G.ratio.toFixed(1)}</b><button class="px gray" id="rP">＋</button></div>
+    <p id="rH" style="text-align:center"></p>
+    <div class="row"><button class="px" id="openB">开门营业</button><button class="px gray" id="xB">再想想</button></div>`);
+  const upd=()=>{$('rV').textContent='×'+G.ratio.toFixed(1);const [e,t]=reaction(G.ratio);$('rH').textContent=`客人大概会：${e} ${t}`};
+  bind('rM',()=>{G.ratio=Math.max(0.5,Math.round((G.ratio-0.1)*10)/10);upd()});bind('rP',()=>{G.ratio=Math.min(2,Math.round((G.ratio+0.1)*10)/10);upd()});upd();
+  bind('openB',()=>{G.opened=true;save();startBiscuitDay()});bind('xB',hide);
+}
+function startBiscuitDay(){
+  shop='biscuit';const n=4+G.up.bell;queue=[];
+  for(let i=0;i<n;i++)queue.push({mode:'sell',kind:'biscuit',who:who()});
+  const ci=1+Math.floor(Math.random()*(n-1));queue[ci]={mode:'custom',kind:'biscuit',who:who(),custom:{hole:HOLES[Math.floor(Math.random()*HOLES.length)]}};
+  day={shelf:[],t:0,log:'',final:false};nextJob();
+}
+function nextJob(){
+  if(!queue.length){day.final=true;return shelfPanel()}
+  const o=queue[0];
+  show(custHead(o,o.mode==='custom'?`定制：全部扎<b>${o.custom.hole}</b>形孔，要 ★★★，我在这儿等着！`:'老板，来块苏打饼干！')+
+    `<p>${o.mode==='custom'?'定制单不参与定价：按估值 × 3 结算，客人当场给反馈。':'打完按评分估值，按售价比上货架。'}还剩 ${queue.length} 单。</p>
+    <div class="row"><button class="px" id="takeB">现场打孔</button></div>`);
+  drawCust($('cust'),0);bind('takeB',()=>startPunch(o));
+}
+function valueOf(st,acc){return Math.round(SHOPS.biscuit.base*(0.6+0.4*st)*(0.8+0.4*acc)*(1+0.2*G.up.sign))}
+function sellResult(o,res){
+  queue.shift();D.mat+=5;const t=tierOf(res),st=t>=3?3:t===2?2:t===1?1:0;
+  if(o.mode==='custom'){const v=valueOf(Math.max(1,st),res.acc);
+    return settle(t,t>=2?v*3:t===1?v:0,`扎中 ${res.hit}/${res.total}，扎歪 ${res.wrong}。定制单：估值 ${v} × 3。`)}
+  if(!st){day.log='饼干裂了 💥 这块卖不了';return shelfPanel()}
+  const v=valueOf(st,res.acc);day.shelf.push({st,v,prog:0,sold:false});day.log=`上架：${stars(st)} 估值 ${v}，售价 ${Math.round(v*G.ratio)}`;shelfPanel();
+}
+function shelfPanel(){
+  const items=day.shelf.filter(s=>!s.sold);
+  show(`<h2>柜台 · ${day.final?'打烊前 <span id="stT">8</span> 秒':'客人正在挑'}</h2>
+    <div class="row" style="align-items:center;margin-top:0">售价比 <button class="px gray" id="rM" style="padding:6px 10px">−</button><b id="rV" style="font-size:18px;min-width:50px">×${G.ratio.toFixed(1)}</b><button class="px gray" id="rP" style="padding:6px 10px">＋</button></div>
+    <div id="shelf"></div><p id="stLog" style="text-align:center;min-height:22px">${day.log}</p>
+    <div class="row">${day.final?'<button class="px gray" id="endB">直接打烊</button>':'<button class="px" id="nextB">打下一块</button>'}</div>`);
+  const ch=d=>{G.ratio=Math.min(2,Math.max(0.5,Math.round((G.ratio+d)*10)/10));$('rV').textContent='×'+G.ratio.toFixed(1);shelfUI()};
+  bind('rM',()=>ch(-0.1));bind('rP',()=>ch(0.1));
+  bind('nextB',()=>{clearInterval(day.h);nextJob()});bind('endB',()=>{clearInterval(day.h);endDay()});
+  day.t=0;day.last=performance.now();clearInterval(day.h);day.h=setInterval(shelfTick,100);shelfUI();
+}
+function shelfUI(){
+  const el=$('shelf');if(!el)return;const live=day.shelf.filter(s=>!s.sold);
+  el.innerHTML=live.length?live.map(s=>{const p=Math.round(s.v*G.ratio);return `<div class="up"><div style="flex:1"><b>${stars(s.st)}</b> 估值 ${s.v} · 售价 <b>${p}</b>
+    <div style="height:6px;background:#0e0a18;margin-top:4px"><div style="height:6px;width:${Math.min(100,s.prog*100)}%;background:#ffd23f"></div></div></div></div>`}).join(''):'<p style="text-align:center;color:#a99cc6">货架空了</p>';
+  if($('stLog'))$('stLog').textContent=day.log;if($('stT'))$('stT').textContent=Math.max(0,Math.ceil(8-day.t));
+}
+function shelfTick(){
+  if(!$('shelf')){clearInterval(day.h);return}
+  const now=performance.now(),dt=Math.min(0.3,(now-day.last)/1000);day.last=now;day.t+=dt;
+  const r=G.ratio,crowd=1+Math.max(0,G.rep)*0.03;
+  day.shelf.forEach(s=>{if(s.sold)return;
+    s.prog+=dt*crowd*(0.6+Math.random()*0.8)/(3*Math.pow(r,3)); // 占位：售价比越高越慢，公式待定
+    if(s.prog>=1){const p=Math.round(s.v*r),[e,t]=reaction(r);s.sold=true;D.orders++;D.rev+=p;G.coins+=p;hud();
+      if(r<0.8)D.best=Math.max(D.best,4);day.log=`${who()} ${e} ${t}，付 ${p} 金币`}
+    else if(r>=1.4&&Math.random()<dt*0.3)day.log=`${who()} 😤 ${Math.round(s.v*r)} 金币？嫌贵走掉了`});
+  shelfUI();
+  if(day.final&&(day.t>=8||day.shelf.every(s=>s.sold))){clearInterval(day.h);endDay()}
+}
+function endDay(){
+  const left=day.shelf.filter(s=>!s.sold).length;day.shelf=[];
+  msg('打烊',left?`还剩 ${left} 块没卖掉，打烊清掉了（不留到明天）。`:'全卖光了！','看账本',closeShop);
 }
 function custHead(o,line){return `<h2>${SHOPS[shop].name}</h2>
   <canvas id="cust" width="48" height="40" style="width:144px;height:120px;image-rendering:pixelated"></canvas><br><span class="bubble">${o.who}：${line}</span>`}
-function nextCustomer(){
-  if(!queue.length)return shop==='biscuit'?openStall():closeShop();
-  const o=queue[0];
-  if(o.type==='pickup'){
-    show(custHead(o,`我昨天定的${o.hole}形孔饼干好了吗？`)+`<div class="row"><button class="px" id="gB">交货</button></div>`);
-    drawCust($('cust'),0);bind('gB',()=>{queue.shift();const b=SHOPS.biscuit.base;
-      const t=o.tier,pay=t>=2?b*3:t===1?b:0;settle(t,pay,'定制单：做得好付 3 倍价。')});return;
-  }
-  show(custHead(o,`定制：全部扎${o.hole}形孔，要 ★★★，明天我来拿！`)+`<p>接单后今晚先做这块，明天客人来取。</p><div class="row"><button class="px" id="gB">接单</button><button class="px gray" id="nB">不接</button></div>`);
-  drawCust($('cust'),0);
-  bind('gB',()=>{queue.shift();G.customs.push({who:o.who,hole:o.hole});save();toast('接了定制单，今晚先做');nextCustomer()});
-  bind('nB',()=>{queue.shift();nextCustomer()});
-}
-const STALL_TIME=30;
-function ratioText(r){const p=Math.round(r*100);return p===100?'按估值':p<100?`低 ${100-p}% · 卖得快`:`高 ${p-100}% · 卖得慢`}
-function openStall(){
-  if(!G.stock.length){msg('摆摊','货架是空的，今天没东西卖。晚上多做点。','打烊',closeShop);return}
-  stall={t:0,running:false,log:'先调价，再开摊。'};
-  G.stock.forEach(s=>{s.prog=0;s.sold=false;if(!s.p)s.p=s.v});
-  const rows=G.stock.map((s,i)=>`<div class="up" id="row${i}"><div style="flex:1"><b>${stars(s.st)}</b> 估值 ${s.v}${s.nights?' · 隔夜':''}<br>
-    <span id="rt${i}" style="font-size:12px;color:#a99cc6"></span><div style="height:6px;background:#0e0a18;margin-top:4px"><div id="pg${i}" style="height:6px;width:0;background:#ffd23f"></div></div></div>
-    <button class="px gray" data-d="${i}" data-k="-1" style="padding:6px 10px">−</button><b id="pr${i}" style="min-width:40px;text-align:center;font-size:16px"></b><button class="px gray" data-d="${i}" data-k="1" style="padding:6px 10px">＋</button></div>`).join('');
-  show(`<h2>饼干摊 · <span id="stT">${STALL_TIME}</span> 秒</h2>
-    <p>每块饼干晚上按评分估了价。售价<b>低于估值卖得快</b>，<b>高于估值卖得慢</b>，开摊后也能随时调。</p>
-    <div class="row" style="margin-top:4px"><button class="px blue" id="all8" style="padding:6px 10px">全部 8 折</button><button class="px blue" id="all10" style="padding:6px 10px">按估值</button><button class="px blue" id="all13" style="padding:6px 10px">全部 1.3 倍</button></div>
-    ${rows}<p id="stLog" style="text-align:center;min-height:22px"></p>
-    <div class="row"><button class="px" id="stGo">开摊</button></div>`);
-  const setAll=k=>{G.stock.forEach(s=>{if(!s.sold)s.p=Math.max(1,Math.round(s.v*k))});stallUI()};
-  bind('all8',()=>setAll(0.8));bind('all10',()=>setAll(1));bind('all13',()=>setAll(1.3));
-  document.querySelectorAll('[data-d]').forEach(el=>el.onclick=()=>{const s=G.stock[+el.dataset.d];if(s.sold)return;
-    const step=Math.max(1,Math.round(s.v*0.1));s.p=Math.max(1,Math.min(s.v*3,s.p+step*(+el.dataset.k)));stallUI()});
-  bind('stGo',()=>{if(stall.running)return;stall.running=true;$('stGo').textContent='营业中…';$('stGo').disabled=true;stall.last=performance.now();stall.h=setInterval(stallTick,100)});
-  stallUI();
-}
-function stallUI(){
-  G.stock.forEach((s,i)=>{const r=s.p/s.v;$('pr'+i).textContent=s.p;
-    $('rt'+i).textContent=s.sold?'已卖出 ✓':ratioText(r);$('rt'+i).style.color=s.sold?'#7fdc6e':r<0.95?'#7fdc6e':r>1.05?'#ff9a8a':'#a99cc6';
-    $('pg'+i).style.width=Math.min(100,s.prog*100)+'%';$('row'+i).style.opacity=s.sold?0.45:1});
-  $('stT').textContent=Math.max(0,Math.ceil(STALL_TIME-stall.t));$('stLog').textContent=stall.log;
-}
-function stallTick(){
-  if(!$('stT')){clearInterval(stall.h);return}
-  const now=performance.now(),dt=Math.min(0.3,(now-stall.last)/1000);stall.last=now;stall.t+=dt;
-  const crowd=1+Math.max(0,G.rep)*0.03;
-  G.stock.forEach(s=>{if(s.sold)return;const r=s.p/s.v;
-    s.prog+=dt*crowd*(0.6+Math.random()*0.8)/(5*Math.pow(r,3));
-    if(s.prog>=1){s.sold=true;s.prog=1;
-      const t=r<0.7?4:r<0.9?3:r<=1.1?2:1,T=TIERS[t];
-      D.orders++;D.rev+=s.p;D.best=Math.max(D.best,t===1?2:t);G.coins+=s.p;hud();
-      stall.log=`${who()} 买走 ${stars(s.st)}，付 ${s.p} 金币 ${t===4?'😆 哈哈捡到便宜！':t===1?'😮‍💨 好贵…还是买了':T.emo}`}
-    else if(r>1.3&&Math.random()<dt*0.25)stall.log=`${who()}：${s.p} 金币？🤣👉🏻🤡 抢钱啊！`});
-  stallUI();
-  if(stall.t>=STALL_TIME||G.stock.every(s=>s.sold)){clearInterval(stall.h);
-    const left=G.stock.filter(s=>!s.sold).length;G.stock=G.stock.filter(s=>!s.sold);save();
-    msg('收摊',`卖出 ${D.orders} 块，进账 ${D.rev} 金币。${left?`剩 ${left} 块，明天估值打 7 折，放两晚就扔。`:'全卖光了！'}`,'打烊',closeShop)}
-}
 function drawCust(c,mood){ // reuse the sprite helper on a small canvas
   const t2=c.getContext('2d');t2.clearRect(0,0,48,40);
   const keep=R;R=(x,y,w,h,col)=>{t2.fillStyle=col;t2.fillRect(Math.round(x),Math.round(y),w,h)};
@@ -372,13 +356,13 @@ function drawCust(c,mood){ // reuse the sprite helper on a small canvas
 function closeShop(){
   const mat=D.mat,rent=15,prof=D.rev-mat-rent;
   const e=EDICTS[G.edict],ok=e.ok(D),bonus=ok?e.r:0;
-  G.coins+=bonus-mat-rent;save();hud();
+  G.coins+=bonus-mat-rent;G.phase='night';save();hud();
   show(`<h2>打烊 · 第 ${G.day} 天账本</h2><table class="ledger">
     <tr><td>营业额（${D.orders} 单）</td><td>+${D.rev}</td></tr><tr><td>其中小费</td><td>${D.tips}</td></tr>
-    <tr><td>原料（昨晚每块 5）</td><td>−${mat}</td></tr><tr><td>房租水电</td><td>−${rent}</td></tr>
+    <tr><td>原料（每块 5）</td><td>−${mat}</td></tr><tr><td>房租水电</td><td>−${rent}</td></tr>
     <tr><td>上帝旨意：${e.t}</td><td>${ok?'+'+bonus+' ✓':'没完成'}</td></tr>
     <tr><td><b>今日利润</b></td><td><b>${prof+bonus}</b></td></tr></table>
-    <p>现在有 <b>${G.coins}</b> 金币，货架剩 ${G.stock.length} 块${G.customs.length?`，今晚要做 ${G.customs.length} 张定制单`:''}。回主角家祈祷升级、睡觉。</p>
+    <p>天黑了，现在有 <b>${G.coins}</b> 金币。晚上去强化：主角家神台升级、饼干店升级店铺、开新店，然后睡觉。</p>
     <div class="row"><button class="px" id="homeB">回家</button></div>`);
   bind('homeB',()=>{hide();scene='town';const h=B[0];me.tx=h.x;me.ty=h.y+7;me.goal='home'});
 }
@@ -420,7 +404,7 @@ function settle(t,pay,line){
     <p>${t===0?'客人一分钱没给，口碑 −3。':`收入 ${pay} 金币${tip?`，小费 ${tip}`:''}；口碑 ${T.rep>=0?'+':''}${T.rep}。`}</p>
     <div class="row"><button class="px" id="nB">${queue.length?'下一位':'打烊'}</button></div>`);
   if(t===4){const c=$('cust');const an=()=>{if(!c.isConnected)return;drawCust(c,1);requestAnimationFrame(an)};an()}
-  bind('nB',shop==='biscuit'?nextCustomer:nextSpot);
+  bind('nB',shop==='biscuit'?nextJob:nextSpot);
 }
 
 // ---------- gyro ----------
@@ -449,7 +433,7 @@ async function startPunch(o){
   if(kind==='biscuit'){for(let r=0;r<2;r++)for(let c=0;c<3;c++)tg.push({x:-24+c*24,y:-9+r*18,r:5})}
   else if(kind==='hair'){for(let r=0;r<2;r++)for(let c=0;c<5;c++)tg.push({x:-24+c*12+(r?6:0),y:-14+r*9,r:3})}
   else{for(let i=0;i<8;i++){const a=i/8*Math.PI*2,x=16*Math.pow(Math.sin(a),3),y=-(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a));tg.push({x:x*1.4,y:y*1.4-2,r:3.5})}}
-  P={o,kind,tg,holes:[],wrong:0,t:0,limit:kind==='tattoo'?25:20,n:{x:-40,y:20},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
+  P={o,kind,tg,holes:[],wrong:0,t:0,limit:(kind==='tattoo'?25:20)+5*G.up.night,n:{x:-40,y:20},v:{x:0,y:0},lock:null,zoom:1,trem:{x:0,y:0},done:false};
   $('gameUI').classList.remove('hidden');
   $('zoomB').classList.toggle('hidden',!G.up.zoom);$('zoomB').innerHTML='放大<br>1×';
   $('tip').textContent=gotTilt?'倾斜手机移动针头，按住「固定」稳住，点「打孔」扎下':'没检测到陀螺仪：电脑上用方向键移动针头（手机请用 https 打开并允许陀螺仪）';
@@ -479,7 +463,7 @@ function finishPunch(){
   const hit=P.tg.filter(t=>t.hit),acc=hit.length?hit.reduce((s,t)=>s+t.acc,0)/hit.length:0;
   const res={hit:hit.length,total:P.tg.length,missed:P.tg.length-hit.length,wrong:P.wrong,acc};
   $('gameUI').classList.add('hidden');$('tip').textContent='';$('lockB').classList.remove('on');
-  const o=P.o;scene='town';P=null;o.mode==='night'?nightResult(o,res):spotResult(o,res);
+  const o=P.o;scene='town';P=null;o.mode==='spot'?spotResult(o,res):sellResult(o,res);
 }
 function drawPunch(dt){
   P.t+=dt;if(P.t>=P.limit)finishPunch();if(!P)return;
@@ -508,7 +492,7 @@ function drawPunch(dt){
   // targets
   P.tg.forEach(t=>{if(t.hit)return;const [a,b]=W(t.x,t.y),r=t.r*s;
     lx.fillStyle='#ffffffcc';for(let i=0;i<16;i+=2){const an=i/16*Math.PI*2+P.t;lx.fillRect(Math.round(a+Math.cos(an)*r),Math.round(b+Math.sin(an)*r),Math.max(1,s/2|0),Math.max(1,s/2|0))}
-    if(P.kind==='biscuit'&&P.o.custom){lx.fillStyle='#ffd23f';lx.font=`${Math.max(6,Math.round(r))}px sans-serif`;lx.textAlign='center';lx.textBaseline='middle';lx.fillText(P.o.custom.hole,a,b)}});
+    if(P.kind==='biscuit'&&P.o.custom){lx.fillStyle='#ffd23f';lx.font=`${Math.max(6,Math.round(r))}px sans-serif`;lx.textAlign='center';lx.textBaseline='middle';lx.fillText(P.o.custom&&P.o.custom.hole||'',a,b)}});
   // holes
   if(P.kind==='tattoo'){const ok=P.holes.filter(h=>h.ok);lx.strokeStyle='#2b1f45';lx.lineWidth=Math.max(1,s*0.8);lx.beginPath();ok.forEach((h,i)=>{const [a,b]=W(h.x,h.y);i?lx.lineTo(a,b):lx.moveTo(a,b)});lx.stroke()}
   P.holes.forEach(h=>{const [a,b]=W(h.x,h.y),r=Math.max(1,Math.round(1.6*s));
