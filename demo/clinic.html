@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>奶帝十字架 · 义体诊所 demo</title>
+<style>
+  :root{--bg:#0b0f14;--cy:#27e1ff;--ye:#ffd23f;--t1:#e8eef5;--blue:#4aa3ff;--gold:#ffb800;--mute:#7d8a99;--card:#111a24}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--t1);font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  #app{position:fixed;inset:0;padding:calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    display:grid;grid-template-rows:auto 1fr;box-sizing:border-box;
+    background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 4px),radial-gradient(ellipse at 50% 55%,#0f2a36 0,var(--bg) 65%)}
+  #top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #27e1ff4d;padding-bottom:6px;gap:8px}
+  #top h1{margin:0;font-size:17px;color:var(--ye);letter-spacing:1px;text-shadow:0 0 8px #ffd23f80;white-space:nowrap}
+  .tb{background:none;border:1px solid #27e1ff66;color:var(--t1);font:inherit;font-size:13px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+  #coin{font-weight:800;font-size:14px;white-space:nowrap}#coin b{color:var(--ye)}
+  #main{position:relative;display:grid;grid-template-columns:minmax(150px,1fr) minmax(200px,1.5fr) minmax(150px,1fr);gap:14px;min-height:0;padding-top:8px}
+  .col{display:flex;flex-direction:column;justify-content:space-around;gap:8px;min-height:0;transition:opacity .3s,transform .3s}
+  .slot{position:relative;background:var(--card);border:1.5px solid var(--t1);padding:7px 10px;cursor:pointer;min-height:56px;box-sizing:border-box;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+  .slot.empty{border:1.5px dashed #4b5a6b;background:#0d141c}
+  .slot.t2{border-color:var(--blue)}.slot.t3{border-color:var(--gold)}
+  .slot:active{transform:translateY(1px)}
+  .slot .k{font-size:11px;color:#8fa0b3}.slot .n{font-size:14px;font-weight:700;margin-top:2px}.slot .e{font-size:11px;color:#8fa0b3;margin-top:1px}
+  .slot .socks{display:flex;gap:6px;margin-top:4px}
+  .sock{flex:1;font-size:11px;border:1px solid var(--t1);padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sock.empty{border:1px dashed #4b5a6b;color:var(--mute);text-align:center}
+  .sock.t2{border-color:var(--blue)}.sock.t3{border-color:var(--gold)}
+  .tc1{color:var(--t1)}.tc2{color:var(--blue)}.tc3{color:var(--gold)}
+  #bodyWrap{position:relative;overflow:hidden;min-height:0}
+  #body{width:100%;height:100%;display:block}
+  #rig{transition:transform .5s cubic-bezier(.3,.8,.3,1)}
+  #body .part{fill:none;stroke:var(--cy);stroke-width:2.2;transition:opacity .3s,stroke .3s}
+  #body .part.lit{filter:drop-shadow(0 0 3px #27e1ff)}
+  #body .part.focus{stroke:var(--ye);stroke-width:3.2;filter:drop-shadow(0 0 5px #ffd23f)}
+  #body.dim .part:not(.focus){opacity:.18}
+  #lines{position:absolute;inset:0;pointer-events:none;transition:opacity .3s}
+  #lines path{stroke:var(--cy);stroke-width:1;stroke-dasharray:3 3;fill:none;opacity:.6}
+  #hint{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:11px;color:#8fa0b3;pointer-events:none}
+  /* focus mode */
+  #main.focus #colL,#main.focus #colR{opacity:0;pointer-events:none}
+  #main.focus #lines{opacity:0}
+  #main.focus #bodyWrap{grid-column:1/2;grid-row:1}
+  #shelf{position:absolute;top:8px;bottom:0;right:0;width:calc(62% - 7px);background:#0f1720f2;border:1px solid #27e1ff66;display:flex;flex-direction:column;
+    transform:translateX(110%);transition:transform .35s cubic-bezier(.3,.8,.3,1);box-sizing:border-box}
+  #main.focus #shelf{transform:none}
+  #shelfHead{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #27e1ff33;font-size:12px;color:#8fa0b3;gap:6px}
+  #shelfHead b{color:var(--ye);font-size:15px}
+  #mySocks{display:flex;gap:6px;padding:6px 12px 0}
+  #mySocks .sock{padding:5px 7px;cursor:pointer;font-size:12px}
+  #list{flex:1;overflow:auto;padding:6px 12px}
+  .it{display:flex;align-items:center;gap:8px;border:1.5px solid var(--t1);background:var(--card);padding:7px 10px;margin:6px 0;cursor:pointer}
+  .it.t2{border-color:var(--blue)}.it.t3{border-color:var(--gold)}
+  .it.new{border-color:#4b5a6b}
+  .it.sel{outline:2px solid var(--ye);outline-offset:1px;background:#16222e}
+  .it.lock{border-style:dashed;border-color:#4b5a6b;color:var(--mute);cursor:default}
+  .it .nm{font-weight:700;font-size:14px}.it .sub{font-size:11px;color:#8fa0b3;margin-top:2px}
+  .it .st{margin-left:auto;font-size:11px;color:var(--cy);text-align:right;white-space:nowrap}
+  .pips{letter-spacing:1px}
+  #foot{border-top:1px solid #27e1ff33;padding:8px 12px;display:flex;align-items:center;gap:10px}
+  #cmp{flex:1;font-size:12px;line-height:1.5;color:#c9d4e0;min-width:0}
+  #cmp .up{color:#5dff9a}#cmp .k{color:#8fa0b3}
+  .go{background:var(--ye);color:#111;border:none;font:inherit;font-weight:900;font-size:14px;padding:10px 14px;cursor:pointer;white-space:nowrap;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))}
+  .go[disabled]{background:#4b5a6b;color:#9aa6b2}
+  .go.sec{background:transparent;color:var(--t1);border:1px solid #27e1ff88}
+  #pop{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9}
+  #popBox{width:min(92vw,380px);background:#0f1720;border:1px solid var(--cy);padding:16px;box-sizing:border-box;line-height:1.6;font-size:14px}
+  #popBox h2{margin:0 0 6px;color:var(--ye);font-size:18px}
+  #popBox .row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:10;transition:opacity .5s}
+  #god{position:fixed;left:50%;top:calc(56px + env(safe-area-inset-top));transform:translateX(-50%);background:#0f1720f0;border:1px solid var(--ye);color:var(--ye);
+    padding:8px 14px;font-weight:800;font-size:14px;z-index:11;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+  #dev{font-size:11px;color:#8fa0b3}
+  #dev label{margin-left:6px;white-space:nowrap}
+  .hidden{display:none!important}
+  @media (orientation:portrait){
+    #main{grid-template-columns:1fr 1fr;grid-template-rows:1fr auto auto auto;gap:8px}
+    #bodyWrap{grid-column:1/3;grid-row:1}
+    #colL{grid-column:1;grid-row:2/5}#colR{grid-column:2;grid-row:2/5}
+    #shelf{left:0;width:auto;top:42%}
+    #main.focus #bodyWrap{grid-column:1/3}
+    #lines{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <button class="tb" id="backB">← 回家</button>
+    <h1>奶帝十字架 · 义体诊所</h1>
+    <span id="coin">金币 <b id="coinN">0</b></span>
+  </div>
+  <div id="main">
+    <div class="col" id="colL"></div>
+    <div id="bodyWrap">
+      <svg id="body" viewBox="0 0 300 360" preserveAspectRatio="xMidYMid meet"><g id="rig">
+        <!-- 针头奶龙 hologram wireframe; each part is tappable and maps to a slot -->
+        <g class="part" data-p="brain"><path d="M118 50 Q150 22 182 50"/><path d="M128 44 Q136 36 146 40 M154 40 Q164 36 172 44"/></g>
+        <g class="part" data-p="head"><circle cx="150" cy="78" r="44"/><path d="M128 104 Q150 116 172 104"/></g>
+        <g class="part" data-p="eye"><circle cx="134" cy="76" r="8"/><circle cx="166" cy="76" r="8"/><circle cx="134" cy="76" r="2.5"/><circle cx="166" cy="76" r="2.5"/></g>
+        <g class="part" data-p="torso"><ellipse cx="150" cy="212" rx="78" ry="92"/></g>
+        <g class="part" data-p="spine"><path d="M150 124 L150 296" stroke-dasharray="6 5"/><path d="M142 140h16M142 170h16M142 200h16M142 230h16M142 260h16"/></g>
+        <g class="part" data-p="lhand"><path d="M74 190 Q42 214 46 262"/><circle cx="47" cy="270" r="9"/></g>
+        <g class="part" data-p="needle"><path d="M226 190 Q256 196 268 170"/><rect x="262" y="118" width="16" height="50" rx="3"/><path d="M270 118 V92 M264 132h12M264 146h12M270 168v8"/></g>
+        <g class="part" data-p="nerve"><path d="M150 132 C196 160 104 196 156 232 C200 262 116 282 150 300" stroke-dasharray="2 4"/><path d="M150 180 C116 186 92 198 78 196 M150 180 C186 186 210 196 224 192" stroke-dasharray="2 4"/></g>
+        <g class="part" data-p="legs"><path d="M124 298 L116 344 M176 298 L184 344"/></g>
+      </g></svg>
+      <div id="hint">点部位查看义体</div>
+    </div>
+    <div class="col" id="colR"></div>
+    <svg id="lines"></svg>
+    <div id="shelf">
+      <div id="shelfHead"><b id="shelfTitle"></b><span id="shelfSub"></span></div>
+      <div id="mySocks"></div>
+      <div id="list"></div>
+      <div id="foot"><div id="cmp"></div><button class="go" id="goB"></button></div>
+    </div>
+  </div>
+</div>
+<div id="pop" class="hidden"><div id="popBox"></div></div>
+<div id="flash"></div>
+<div id="god"></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+// ---------- data: mirrors 策划案/奶帝十字架.xlsx (SlotConfig / ImplantConfig) ----------
+const SLOTS=[
+  {k:'eye',   name:'眼睛',      sock:1,col:'L',part:'eye',   focus:[150,76,2.4]},
+  {k:'brain', name:'大脑',      sock:1,col:'L',part:'brain', focus:[150,52,2.4]},
+  {k:'lhand', name:'左手',      sock:1,col:'L',part:'lhand', focus:[60,230,2.2]},
+  {k:'spine', name:'脊柱',      sock:1,col:'R',part:'spine', focus:[150,210,1.5]},
+  {k:'needle',name:'右手的针管',sock:2,col:'R',part:'needle',focus:[248,150,2.0]},
+  {k:'nerve', name:'神经系统',  sock:0,col:'R',part:'nerve', focus:[150,210,1.4]},
+];
+const TIER=['','普通','稀有','传说'];
+// fx(t) = effect text at tier t (1-based); cmp(t) = number line for the compare box
+const IMPLANTS=[
+  {id:3101,k:'unmoved',slot:'lhand',name:'不动奶王手',prices:[150,300,500],unlock:null,
+    fx:t=>`按住固定：固定圈 ${[0,.8,.65,.5][t]}×，手抖 ×${[0,.5,.4,.3][t]}`,cmp:t=>['固定圈',[1,.8,.65,.5][t]+'×']},
+  {id:3102,k:'lucky',slot:'lhand',name:'招财奶猫抓',prices:[150,300,500],unlock:null,
+    fx:t=>`扫灰后黄金饼干概率 ×${[1,1.5,2,3][t]}`,cmp:t=>['黄金饼干概率','×'+[1,1.5,2,3][t]]},
+  {id:3103,k:'fireeye',slot:'eye',name:'火眼奶睛',prices:[120,300,550],unlock:null,
+    fx:t=>[ '', '解锁放大 2×；不眼花时间 +20%', '放大 3× + 落点准星；不眼花 +35%', '放大 4×（待定）；不眼花 +50%'][t],
+    cmp:t=>['2× 连续不眼花',(8*[1,1.2,1.35,1.5][t]).toFixed(1)+' 秒']},
+  {id:3104,k:'spine',slot:'spine',name:'花围脊梁柱',prices:[80,180,360],unlock:null,
+    fx:t=>`手抖 −${[0,22,40,55][t]}%`,cmp:t=>['手抖','−'+[0,22,40,55][t]+'%']},
+  {id:3105,k:'money',slot:'brain',name:'奶帝印钞脑',prices:[150,320,600],unlock:null,
+    fx:t=>`饼干售价 +${[0,10,20,30][t]}%`,cmp:t=>['饼干售价','+'+[0,10,20,30][t]+'%']},
+  {id:3106,k:'preach',slot:'brain',name:'奶娃传教脑',prices:[120,260,500],unlock:null,
+    fx:t=>`顾客耐心 +${[0,20,35,50][t]}%`,cmp:t=>['顾客耐心','+'+[0,20,35,50][t]+'%']},
+  {id:3107,k:'hair',slot:'needle',name:'发丝裁决者',prices:[120,260],unlock:'hair',
+    fx:t=>['','解锁中针头','解锁中、小针头'][t],cmp:t=>['可用针头',['大','大 / 中','大 / 中 / 小'][t]]},
+  {id:3108,k:'pump',slot:'needle',name:'奶娃充能泵',prices:[90,220,400],unlock:null,
+    // base charge thresholds from ControlConfig: white/gray/black 0.12|0.4|0.9 s
+    fx:t=>`力度蓄力快 ${[0,25,40,55][t]}%`,cmp:t=>['黑孔蓄力',(0.9*(1-[0,.25,.4,.55][t])).toFixed(2)+' 秒']},
+  {id:3109,k:'tattoo',slot:'needle',name:'奶帝圣纹笔',prices:[200],unlock:'tattoo',
+    fx:t=>'解锁按住连续刻',cmp:t=>['连续刻',t?'可用':'不可用']},
+  {id:3110,k:'world',slot:'nerve',name:'奶帝的世界',prices:[200,400,700],unlock:'hair',
+    fx:t=>`时停 ${[0,3,4,5][t]} 秒，冷却 ${[0,30,25,20][t]} 秒`,cmp:t=>['时停',t?[0,3,4,5][t]+' 秒':'无']},
+];
+const LINES=['奶帝：手术很成功，孩子。','奶帝：感受这股雷霆之力吧！','奶帝：装好了，去扎吧。','奶帝：又强了一点，阿门。'];
+const SHOP_NAME={hair:'植发店',tattoo:'纹身店'};
+// ---------- state: coins and opened shops come from the town demo save (demo/town.html) ----------
+let town=null;try{town=JSON.parse(localStorage.getItem('nailongTown6')||'null')}catch(e){}
+const DEF={coins:town&&town.coins!=null?town.coins:1500,open:{hair:!!(town&&town.open&&town.open.hair),tattoo:!!(town&&town.open&&town.open.tattoo)},
+  own:{},sock:{eye:[null],brain:[null],lhand:[null],spine:[null],needle:[null,null]}};
+let S=(()=>{try{const s=JSON.parse(localStorage.getItem('nailongClinic1')||'null');if(s)return s}catch(e){}return JSON.parse(JSON.stringify(DEF))})();
+function save(){try{localStorage.setItem('nailongClinic1',JSON.stringify(S))}catch(e){}}
+const imp=k=>IMPLANTS.find(i=>i.k===k);
+const tierOf=k=>S.own[k]||0;
+const onSale=i=>!i.unlock||S.open[i.unlock];
+const where=k=>{for(const s in S.sock){const j=S.sock[s].indexOf(k);if(j>=0)return [s,j]}return null};
+// ---------- overview ----------
+function slotCard(sl){
+  const d=document.createElement('div');d.className='slot';d.dataset.s=sl.k;
+  if(sl.sock===0){const i=IMPLANTS.find(x=>x.slot===sl.k),t=tierOf(i.k);
+    d.classList.add(t?'t'+t:'empty');
+    d.innerHTML=`<div class="k">${sl.name} · 无插槽</div><div class="n">${t?i.name:'＋ 未升级'}</div><div class="e ${t?'tc'+t:''}">${t?TIER[t]+' · '+i.fx(t):onSale(i)?'点击直接升级':'开'+SHOP_NAME[i.unlock]+'后可升级'}</div>`;
+  }else if(sl.sock===1){const k=S.sock[sl.k][0],t=k?tierOf(k):0;
+    d.classList.add(k?'t'+t:'empty');
+    d.innerHTML=`<div class="k">${sl.name}</div><div class="n" style="${k?'':'color:var(--mute)'}">${k?imp(k).name:'＋ 空'}</div>${k?`<div class="e tc${t}">${TIER[t]} · ${imp(k).fx(t)}</div>`:''}`;
+  }else{
+    d.innerHTML=`<div class="k">${sl.name} · ${sl.sock} 插槽</div><div class="socks">${S.sock[sl.k].map(k=>k?`<div class="sock t${tierOf(k)}">${imp(k).name}</div>`:'<div class="sock empty">＋</div>').join('')}</div>`;
+  }
+  d.onclick=()=>sl.sock===0?nervePop(sl):focus(sl.k);
+  return d}
+function render(){
+  $('coinN').textContent=S.coins;
+  const L=$('colL'),R=$('colR');L.innerHTML='';R.innerHTML='';
+  SLOTS.forEach(sl=>(sl.col==='L'?L:R).append(slotCard(sl)));
+  // parts with something installed glow
+  document.querySelectorAll('#body .part').forEach(p=>{const sl=SLOTS.find(s=>s.part===p.dataset.p);
+    const on=sl&&(sl.sock===0?tierOf(IMPLANTS.find(i=>i.slot===sl.k).k):S.sock[sl.k].some(Boolean));p.classList.toggle('lit',!!on)});
+  requestAnimationFrame(drawLines);
+  if(cur)renderShelf();
+}
+const PART_PT={eye:[166,76],brain:[150,40],lhand:[50,250],spine:[150,200],needle:[270,140],nerve:[190,250]};
+function drawLines(){
+  const svg=$('lines'),m=$('main').getBoundingClientRect(),b=$('body'),vb=b.getBoundingClientRect();
+  const sc=Math.min(vb.width/300,vb.height/360),ox=vb.left+(vb.width-300*sc)/2-m.left,oy=vb.top+(vb.height-360*sc)/2-m.top;
+  svg.setAttribute('viewBox',`0 0 ${m.width} ${m.height}`);
+  svg.innerHTML=SLOTS.map(sl=>{const c=document.querySelector(`.slot[data-s="${sl.k}"]`);if(!c)return'';const r=c.getBoundingClientRect();
+    const x1=sl.col==='L'?r.right-m.left:r.left-m.left,y1=r.top+r.height/2-m.top,[px,py]=PART_PT[sl.k];
+    return `<path d="M${x1} ${y1} L${ox+px*sc} ${oy+py*sc}"/>`}).join('');
+}
+addEventListener('resize',()=>{requestAnimationFrame(drawLines);if(cur)zoomTo(SLOTS.find(s=>s.k===cur))});
+document.querySelectorAll('#body .part').forEach(p=>p.addEventListener('click',()=>{const sl=SLOTS.find(s=>s.part===p.dataset.p);if(sl)sl.sock===0?nervePop(sl):focus(sl.k)}));
+// ---------- focus: highlight the part, push the camera in, dim the rest, slide the shelf in ----------
+let cur=null,sel=null;
+function zoomTo(sl){const [x,y,z]=sl.focus;
+  $('rig').style.transform=`translate(150px,180px) scale(${z}) translate(${-x}px,${-y}px)`}
+function focus(k){cur=k;const sl=SLOTS.find(s=>s.k===k);
+  $('main').classList.add('focus');$('body').classList.add('dim');$('hint').classList.add('hidden');
+  document.querySelectorAll('#body .part').forEach(p=>p.classList.toggle('focus',p.dataset.p===sl.part));
+  zoomTo(sl);$('backB').textContent='← 返回总览';
+  const items=IMPLANTS.filter(i=>i.slot===k);sel=(items.find(i=>onSale(i)&&!where(i.k))||items.find(onSale)||items[0]).k;
+  renderShelf()}
+function unfocus(){cur=null;$('main').classList.remove('focus');$('body').classList.remove('dim');$('hint').classList.remove('hidden');
+  document.querySelectorAll('#body .part').forEach(p=>p.classList.remove('focus'));$('rig').style.transform='';$('backB').textContent='← 回家';
+  setTimeout(drawLines,520)}
+$('backB').onclick=()=>cur?unfocus():pop(`<h2>回家</h2><p>正式版里这里回到主角家。这个原型只做义体诊所。</p><p><a href="town.html" style="color:var(--ye)">打开小镇原型</a></p><div class="row"><button class="go" onclick="closePop()">好</button></div>`);
+function renderShelf(){
+  const sl=SLOTS.find(s=>s.k===cur),items=IMPLANTS.filter(i=>i.slot===cur);
+  $('shelfTitle').textContent=sl.name;$('shelfSub').textContent=sl.sock+' 个插槽 · 货架随开店进度上新';
+  $('mySocks').innerHTML=S.sock[cur].map((k,j)=>k?`<div class="sock t${tierOf(k)}" data-j="${j}">插槽 ${j+1}：${imp(k).name} ✕</div>`:`<div class="sock empty">插槽 ${j+1}：空</div>`).join('');
+  $('mySocks').querySelectorAll('[data-j]').forEach(e=>e.onclick=()=>{S.sock[cur][+e.dataset.j]=null;save();render();god('奶帝：先拆下来，放你库存里了。')});
+  $('list').innerHTML=items.map(i=>{const t=tierOf(i.k),w=where(i.k),max=i.prices.length;
+    if(!onSale(i))return `<div class="it lock"><div><div class="nm">🔒 ${i.name}</div><div class="sub">开${SHOP_NAME[i.unlock]}后上架</div></div></div>`;
+    const pips='◆'.repeat(t)+'◇'.repeat(max-t);
+    const st=w?`已装 · 插槽 ${w[1]+1}`:t?'已买 · 未装':`未购买 · ${i.prices[0]} 金币`;
+    return `<div class="it ${t?'t'+t:'new'} ${sel===i.k?'sel':''}" data-k="${i.k}"><div><div class="nm">${i.name}</div><div class="sub"><span class="pips tc${t||1}">${pips}</span> ${t?TIER[t]+' · '+i.fx(t):i.fx(1)}</div></div><div class="st">${st}</div></div>`}).join('');
+  $('list').querySelectorAll('[data-k]').forEach(e=>e.onclick=()=>{sel=e.dataset.k;renderShelf()});
+  // compare + main action for the selected implant
+  const i=imp(sel);if(!i||!onSale(i)){$('cmp').innerHTML='';$('goB').classList.add('hidden');return}
+  $('goB').classList.remove('hidden');
+  const t=tierOf(i.k),w=where(i.k),max=i.prices.length,socks=S.sock[cur],free=socks.indexOf(null);
+  let act,price=0,next=t,label;
+  if(!t){act='buy';price=i.prices[0];next=1;label=free>=0?`购买并安装 · ${price}`:`购买并替换插槽 ${socks.length>1?'1':''} · ${price}`.replace('插槽  ·','插槽 ·')}
+  else if(!w){act='equip';label=free>=0?'安装':'替换插槽 1'}
+  else if(t<max){act='up';price=i.prices[t];next=t+1;label=`升档到${TIER[t+1]} · ${price}`}
+  else{act='max';label='已满档'}
+  // compare: against what this slot currently gives for that stat (the same implant if installed, else nothing)
+  const [stat,now]=i.cmp(w?t:0),[,after]=i.cmp(next);
+  $('cmp').innerHTML=act==='max'?`<span class="k">${i.name}</span> 已是${TIER[t]} · ${i.fx(t)}`:
+    `<span class="k">${stat}</span> ${now} → <span class="up">${after}</span><br><span class="k">${act==='up'?'升档后：'+TIER[next]:act==='equip'||act==='buy'?(free>=0?`装到：插槽 ${free+1}（空）`:`会替换：${imp(socks[0]).name}（进库存）`):''}</span>`;
+  const g=$('goB');g.textContent=label;g.disabled=act==='max'||S.coins<price;
+  g.onclick=()=>{if(S.coins<price)return;S.coins-=price;
+    if(act==='buy'||act==='up')S.own[i.k]=next;
+    if(act==='buy'||act==='equip'){const j=free>=0?free:0;socks[j]=i.k}
+    save();surgery()};
+}
+// ---------- nervous system: no socket, tap to upgrade directly ----------
+function nervePop(sl){const i=IMPLANTS.find(x=>x.slot===sl.k),t=tierOf(i.k),max=i.prices.length;
+  if(!onSale(i))return pop(`<h2>${sl.name} · ${i.name}</h2><p>开${SHOP_NAME[i.unlock]}后奶帝才肯动你的神经。</p><div class="row"><button class="go" onclick="closePop()">好</button></div>`);
+  const p=i.prices[t];
+  pop(`<h2>${sl.name} · ${i.name}</h2><p>神经系统不装义体，直接升级主动技能「${i.name}」：营业中点按钮进入慢动作，手抖和客人耐心一起变慢。</p>
+    <p>${t?`现在：<b class="tc${t}">${TIER[t]}</b> · ${i.fx(t)}<br>`:'现在：未升级<br>'}${t<max?`升档后：<b class="tc${t+1}">${TIER[t+1]}</b> · ${i.fx(t+1)}`:'已满档'}</p>
+    <div class="row"><button class="go sec" onclick="closePop()">算了</button>${t<max?`<button class="go" id="nB" ${S.coins<p?'disabled':''}>升档 · ${p}</button>`:''}</div>`);
+  if(t<max)$('nB').onclick=()=>{S.coins-=p;S.own[i.k]=t+1;save();closePop();surgery()}}
+function pop(h){$('popBox').innerHTML=h;$('pop').classList.remove('hidden')}
+function closePop(){$('pop').classList.add('hidden')}
+// ---------- install feedback: flash, a line from 奶帝, the part lights up ----------
+function surgery(){const f=$('flash');f.style.transition='none';f.style.opacity=.85;requestAnimationFrame(()=>{f.style.transition='opacity .5s';f.style.opacity=0});
+  god(LINES[Math.random()*LINES.length|0]);render()}
+let gT;function god(t){const g=$('god');g.textContent=t;g.style.opacity=1;clearTimeout(gT);gT=setTimeout(()=>g.style.opacity=0,1800)}
+// ---------- prototype-only: unlock shops / reset, since the clinic is tested on its own ----------
+$('coin').onclick=()=>pop(`<h2>原型设置</h2><p id="dev">金币和已开的店一开始读取小镇原型的存档；在这里买东西不会扣小镇的金币。</p>
+  <p><label><input type="checkbox" id="dH" ${S.open.hair?'checked':''}> 已开植发店</label><label><input type="checkbox" id="dT" ${S.open.tattoo?'checked':''}> 已开纹身店</label></p>
+  <div class="row"><button class="go sec" id="dC">+500 金币</button><button class="go sec" id="dR">全部重置</button><button class="go" onclick="closePop()">好</button></div>`)||devBind();
+function devBind(){$('dH').onchange=e=>{S.open.hair=e.target.checked;save();render()};$('dT').onchange=e=>{S.open.tattoo=e.target.checked;save();render()};
+  $('dC').onclick=()=>{S.coins+=500;save();render()};$('dR').onclick=()=>{try{localStorage.removeItem('nailongClinic1')}catch(e){}location.reload()}}
+render();
+</script>
+</body>
+</html>
