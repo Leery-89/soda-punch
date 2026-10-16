@@ -35,6 +35,15 @@
   #body .part.lit{filter:drop-shadow(0 0 3px #27e1ff)}
   #body .part.focus{stroke:var(--ye);stroke-width:3.2;filter:drop-shadow(0 0 5px #ffd23f)}
   #body.dim .part:not(.focus){opacity:.18}
+  #body .part{pointer-events:none}
+  #hits *{fill:transparent;stroke:none;pointer-events:all;cursor:pointer}
+  #tags g{cursor:pointer}
+  #tags rect{fill:#0b0f14d9;stroke:var(--cy);stroke-width:1}
+  #tags text{fill:var(--cy);font-size:11px;text-anchor:middle;font-weight:700}
+  #tags g.press rect{fill:var(--ye);stroke:var(--ye)}#tags g.press text{fill:#111}
+  #body .part.press{stroke:var(--ye);filter:drop-shadow(0 0 6px #ffd23f)}
+  #main.focus #tags{opacity:0;pointer-events:none}
+  #tags{transition:opacity .3s}
   #lines{position:absolute;inset:0;pointer-events:none;transition:opacity .3s}
   #lines path{stroke:var(--cy);stroke-width:1;stroke-dasharray:3 3;fill:none;opacity:.6}
   #hint{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:11px;color:#8fa0b3;pointer-events:none}
@@ -103,8 +112,25 @@
         <g class="part" data-p="spine"><path d="M150 124 L150 296" stroke-dasharray="6 5"/><path d="M142 140h16M142 170h16M142 200h16M142 230h16M142 260h16"/></g>
         <g class="part" data-p="lhand"><path d="M74 190 Q42 214 46 262"/><circle cx="47" cy="270" r="9"/></g>
         <g class="part" data-p="needle"><path d="M226 190 Q256 196 268 170"/><rect x="262" y="118" width="16" height="50" rx="3"/><path d="M270 118 V92 M264 132h12M264 146h12M270 168v8"/></g>
-        <g class="part" data-p="nerve"><path d="M150 132 C196 160 104 196 156 232 C200 262 116 282 150 300" stroke-dasharray="2 4"/><path d="M150 180 C116 186 92 198 78 196 M150 180 C186 186 210 196 224 192" stroke-dasharray="2 4"/></g>
+        <g class="part" data-p="nerve"><path d="M164 150 C190 160 210 180 224 192 M136 150 C110 160 90 180 76 192 M164 200 C186 206 198 222 204 240 M136 200 C114 206 102 222 96 240 M162 256 C176 270 178 286 176 298 M138 256 C124 270 122 286 124 298" stroke-dasharray="2 4"/></g>
         <g class="part" data-p="legs"><path d="M124 298 L116 344 M176 298 L184 344"/></g>
+        <!-- tap targets: separate, generous areas so spine / nerves / brain don't fight (spine is a centre strip, nerves are the torso sides) -->
+        <g id="hits">
+          <ellipse data-p="nerve" cx="150" cy="212" rx="80" ry="94"/>
+          <rect data-p="spine" x="132" y="122" width="36" height="180"/>
+          <rect data-p="brain" x="102" y="2" width="96" height="50"/>
+          <rect data-p="eye" x="114" y="58" width="72" height="34"/>
+          <rect data-p="lhand" x="26" y="180" width="62" height="108"/>
+          <rect data-p="needle" x="226" y="84" width="66" height="118"/>
+        </g>
+        <g id="tags">
+          <g data-p="brain"><rect x="128" y="0" width="44" height="18" rx="2"/><text x="150" y="13">大脑</text></g>
+          <g data-p="eye"><rect x="62" y="66" width="44" height="18" rx="2"/><text x="84" y="79">眼睛</text></g>
+          <g data-p="lhand"><rect x="20" y="290" width="44" height="18" rx="2"/><text x="42" y="303">左手</text></g>
+          <g data-p="needle"><rect x="236" y="62" width="44" height="18" rx="2"/><text x="258" y="75">针管</text></g>
+          <g data-p="spine"><rect x="128" y="318" width="44" height="18" rx="2"/><text x="150" y="331">脊柱</text></g>
+          <g data-p="nerve"><rect x="80" y="246" width="44" height="18" rx="2"/><text x="102" y="259">神经</text></g>
+        </g>
       </g></svg>
       <div id="hint">点部位查看义体</div>
     </div>
@@ -129,9 +155,9 @@ const SLOTS=[
   {k:'eye',   name:'眼睛',      sock:1,col:'L',part:'eye',   focus:[150,76,2.4]},
   {k:'brain', name:'大脑',      sock:1,col:'L',part:'brain', focus:[150,52,2.4]},
   {k:'lhand', name:'左手',      sock:1,col:'L',part:'lhand', focus:[60,230,2.2]},
-  {k:'spine', name:'脊柱',      sock:1,col:'R',part:'spine', focus:[150,210,1.5]},
+  {k:'spine', name:'脊柱',      sock:1,col:'R',part:'spine', focus:[150,210,1.9]},
   {k:'needle',name:'右手的针管',sock:2,col:'R',part:'needle',focus:[248,150,2.0]},
-  {k:'nerve', name:'神经系统',  sock:0,col:'R',part:'nerve', focus:[150,210,1.4]},
+  {k:'nerve', name:'神经系统',  sock:0,col:'R',part:'nerve', focus:[150,200,1.1]},
 ];
 const TIER=['','普通','稀有','传说'];
 // fx(t) = effect text at tier t (1-based); cmp(t) = number line for the compare box
@@ -195,7 +221,7 @@ function render(){
   requestAnimationFrame(drawLines);
   if(cur)renderShelf();
 }
-const PART_PT={eye:[166,76],brain:[150,40],lhand:[50,250],spine:[150,200],needle:[270,140],nerve:[190,250]};
+const PART_PT={eye:[166,76],brain:[150,30],lhand:[50,250],spine:[150,180],needle:[270,140],nerve:[204,238]};
 function drawLines(){
   const svg=$('lines'),m=$('main').getBoundingClientRect(),b=$('body'),vb=b.getBoundingClientRect();
   const sc=Math.min(vb.width/300,vb.height/360),ox=vb.left+(vb.width-300*sc)/2-m.left,oy=vb.top+(vb.height-360*sc)/2-m.top;
@@ -205,7 +231,10 @@ function drawLines(){
     return `<path d="M${x1} ${y1} L${ox+px*sc} ${oy+py*sc}"/>`}).join('');
 }
 addEventListener('resize',()=>{requestAnimationFrame(drawLines);if(cur)zoomTo(SLOTS.find(s=>s.k===cur))});
-document.querySelectorAll('#body .part').forEach(p=>p.addEventListener('click',()=>{const sl=SLOTS.find(s=>s.part===p.dataset.p);if(sl)sl.sock===0?nervePop(sl):focus(sl.k)}));
+// taps go through #hits and #tags; on press the part (and its tag) flash yellow so you can see what you hit
+document.querySelectorAll('#hits [data-p],#tags [data-p]').forEach(h=>{const k=h.dataset.p;
+  h.addEventListener('pointerdown',()=>{if(cur)return;document.querySelectorAll(`#body .part[data-p="${k}"],#tags [data-p="${k}"]`).forEach(e=>{e.classList.add('press');setTimeout(()=>e.classList.remove('press'),220)})});
+  h.addEventListener('click',()=>{if(cur)return;const sl=SLOTS.find(s=>s.part===k);if(sl)setTimeout(()=>sl.sock===0?nervePop(sl):focus(sl.k),120)})});
 // ---------- focus: highlight the part, push the camera in, dim the rest, slide the shelf in ----------
 let cur=null,sel=null;
 function zoomTo(sl){const [x,y,z]=sl.focus;
